@@ -172,6 +172,11 @@ export function drawItem(ctx, it, S) {
       ctx.fillStyle = shade(S.accent, 0.1); ctx.beginPath(); ctx.arc(0, 0, 0.09, 0, 7); ctx.fill();
       break;
     }
+    case 'bench': {
+      roundRect(ctx, -hw, -hd, w, d, 0.04); fillStroke(ctx, S.wood);
+      roundRect(ctx, -hw + 0.04, -hd + 0.04, w - 0.08, d - 0.08, 0.04); fillStroke(ctx, S.fabric2);
+      break;
+    }
     case 'chair': {
       roundRect(ctx, -hw, -hd, w, d, 0.06); fillStroke(ctx, S.woodDark);
       roundRect(ctx, -hw + 0.05, -hd + 0.08, w - 0.1, d - 0.12, 0.05); fillStroke(ctx, S.fabric);
@@ -240,10 +245,15 @@ function drawWallItem(ctx, wi, wall, S) {
   const hw = wi.width / 2;
   switch (wi.type) {
     case 'frame':
-      ctx.fillStyle = S.frame; ctx.fillRect(-hw, -depth / 2, wi.width, depth);
-      ctx.fillStyle = wi.art; ctx.fillRect(-hw + 0.02, -depth / 2 + 0.012, wi.width - 0.04, depth - 0.024);
+      ctx.fillStyle = wi.finish || S.frame; ctx.fillRect(-hw, -depth / 2 + (wi.lean ? 0.03 : 0), wi.width, depth);
+      ctx.fillStyle = wi.art; ctx.fillRect(-hw + 0.02, -depth / 2 + 0.012 + (wi.lean ? 0.03 : 0), wi.width - 0.04, depth - 0.024);
       break;
     case 'shelf': {
+      if (wi.ledge) {
+        ctx.fillStyle = S.wood; ctx.fillRect(-hw, -wi.depth / 2, wi.width, wi.depth);
+        ctx.strokeStyle = shade(S.wood, -0.3); ctx.lineWidth = 0.008; ctx.strokeRect(-hw, -wi.depth / 2, wi.width, wi.depth);
+        break;
+      }
       ctx.fillStyle = S.wood; ctx.fillRect(-hw, -wi.depth / 2, wi.width, wi.depth);
       ctx.strokeStyle = shade(S.wood, -0.3); ctx.lineWidth = 0.008; ctx.strokeRect(-hw, -wi.depth / 2, wi.width, wi.depth);
       const rand = rng(wi.decor || 3);

@@ -15,6 +15,8 @@ import {
   freeIntervals, interiorAngle, polygonBounds, rng as makeRng, distToBoundary,
 } from './geometry.js';
 import { ITEMS, STYLES } from './catalog.js';
+import { composeGallery, planInventory, FINISHES, sizeLabel } from './gallery.js';
+import { fengShuiReport, baguaFrame, baguaZone, mirrorSees } from './fengshui.js';
 
 const DOOR_HEIGHT = 2.1;
 const PERSON_R = 0.28; // half the width of a comfortable walkway (~56 cm)
@@ -279,36 +281,102 @@ class Layout {
     return Array.from({ length: n }, (_, i) => pal[(start + i * 2) % pal.length]);
   }
 
-  /** Hang a gallery of frames centred at t on wall, within maxWidth, bottom at z. */
-  gallery(wall, t, maxWidth, z, ignoreItem, label = 'Gallery wall') {
-    const styleKind = this.style.frameStyle;
-    const layouts = [];
-    if (maxWidth >= 1.5) {
-      layouts.push({ kind: 'triptych', frames: [[-0.5, 0, 0.4, 0.52], [0, 0, 0.4, 0.52], [0.5, 0, 0.4, 0.52]] });
-      if (styleKind !== 'thin' || this.rand() < 0.3)
-        layouts.push({ kind: 'salon', frames: [[-0.55, 0.05, 0.36, 0.46], [-0.1, 0.25, 0.42, 0.32], [-0.1, -0.08, 0.3, 0.26], [0.35, 0, 0.46, 0.6], [0.72, 0.18, 0.22, 0.28]] });
+  wallLabel(wall) {
+    return this.room.wallNames?.[wall.i] || `${(wall.length / 0.0254 / 12).toFixed(1)}' wall`;
+  }
+
+  /** Feng shui fix: a bench at the foot of the bed blocks a straight line to the door. */
+  footBench(bed) {
+    const f = frontOf(bed);
+    const w = Math.min(1.2, bed.w - 0.1);
+    const c = add(centerOf(bed), mul(f, bed.d / 2 + 0.05 + 0.2));
+    const box = { x: c.x, y: c.y, w, d: 0.4, theta: bed.theta };
+    if (!this.canPlace(box, { ignore: [bed.id] })) return null;
+    const b = this.add('bench', box, { h: 0.45 });
+    this.note(`${Math.round(w / 0.0254)}" bench at the foot of the bed — the classic feng shui fix that blocks the straight line from the bed to the door, and a spot to sit and put shoes on.`);
+    return b;
+  }
+
+  zoneAt(p) {
+    if (this._bagua === undefined) this._bagua = baguaFrame(this.room);
+    return this._bagua ? baguaZone(this._bagua, p) : null;
+  }
+
+  /**
+   * Hang a composed gallery centred at t on wall. `under` = width of the furniture
+   * below (the group is kept to ~60–75% of it). Bottom at z, or centred ~58" up when
+   * opts.center is set.
+   */
+  gallery(wall, t, under, z, ignoreItem, label = 'Gallery wall', opts = {}) {
+    const free = this.wallFree(wall, (opts.center ? 1.0 : z) - 0.03, (opts.center ? 1.0 : z) + 0.9, ignoreItem).find(([s0, e0]) => s0 <= t && e0 >= t);
+    if (!free) return false;
+    const span = Math.min(free[1] - t, t - free[0]) * 2 - 0.1;
+    const ceiling = (this.room.height || 2.5) - 0.15;
+    let prefer = opts.prefer;
+    if (!prefer && this.opts.fengShui) {
+      const zone = this.zoneAt(add(add(wall.a, mul(wall.dir, t)), mul(wall.n, 0.3)));
+      if (zone?.key === 'love') prefer = 'pair';
     }
-    if (maxWidth >= 1.1) layouts.push({ kind: 'pair', frames: [[-0.3, 0, 0.5, 0.65], [0.3, 0, 0.5, 0.65]] });
-    if (maxWidth >= 0.7) layouts.push({ kind: 'statement', frames: [[0, 0, Math.min(1.2, maxWidth * 0.62), Math.min(0.8, maxWidth * 0.45)]] });
-    if (maxWidth >= 0.4) layouts.push({ kind: 'single', frames: [[0, 0, 0.36, 0.46]] });
-    for (let attempt = 0; attempt < layouts.length; attempt++) {
-      const lay = attempt === 0 ? layouts[Math.floor(this.rand() * Math.min(2, layouts.length))] : layouts[attempt];
-      let minX = Infinity, maxX = -Infinity, maxZ = 0;
-      for (const [dx, dz, fw, fh] of lay.frames) {
-        minX = Math.min(minX, dx - fw / 2); maxX = Math.max(maxX, dx + fw / 2); maxZ = Math.max(maxZ, dz + fh);
-      }
-      const W = maxX - minX;
-      const ctr = t + (minX + maxX) / 2 * 0; // frames are centred on t
-      if (!this.fitsOnWall(wall, ctr, W, z - 0.05, z + maxZ + 0.05, ignoreItem)) continue;
-      const colors = this.pickArt(lay.frames.length);
-      lay.frames.forEach(([dx, dz, fw, fh], i) => {
-        this.addWall('frame', wall, t + dx - (minX + maxX) / 2, fw, fh, z + dz, { art: colors[i], artSeed: Math.floor(this.rand() * 1e6), group: label });
-      });
-      this.note(`${label}: ${lay.frames.length === 1 ? 'one framed print' : `${lay.frames.length} frames (${lay.kind} layout)`} hung ${(z).toFixed(2)} m up, centred ${lay.frames.length > 1 ? 'as a group' : ''} over the furniture below.`);
-      this.score += 2 + lay.frames.length * 0.3;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const maxW = Math.min(under * 0.75, span) * (1 - attempt * 0.15);
+      const g = composeGallery({ maxW, maxH: Math.min(1.0, ceiling - (opts.center ? 1.0 : z)), roomType: this.opts.roomType, style: this.opts.style, r: this.r, art: this.style.art, prefer: attempt === 0 ? prefer : undefined });
+      if (!g) return false;
+      const zz = opts.center ? clamp(1.47 - g.H / 2, 0.9, ceiling - g.H) : z;
+      if (zz + g.H > ceiling) continue;
+      if (!this.fitsOnWall(wall, t, g.W, zz - 0.03, zz + g.H + 0.03, ignoreItem)) continue;
+      this.placeGroup(wall, t, zz, g, label);
+      const n = g.elements.filter((e) => e.type === 'frame').length;
+      const fin = [...new Set(g.elements.filter((e) => e.finish).map((e) => FINISHES[e.finish].name))];
+      const pct = Math.round((g.W / under) * 100);
+      this.note(`${label}: ${g.label} — ${n} frame${n === 1 ? '' : 's'}${g.elements.some((e) => e.type !== 'frame' && e.type !== 'plantSmall') ? ' plus a non-frame piece' : ''}, ${Math.round(g.W / 0.0254)}" wide (${opts.center ? 'centred at eye level' : `about ${pct}% of the furniture below`}), ${fin.join(' + ')} finish${fin.length > 1 ? 'es' : ''}, 2–3" gaps.`);
+      this.score += 3 + Math.min(n, 4) * 0.3;
       return true;
     }
     return false;
+  }
+
+  placeGroup(wall, t, z, g, label) {
+    for (const e of g.elements) {
+      const tt = t + e.dx, zz = z + e.dz;
+      if (e.type === 'frame') {
+        const fin = FINISHES[e.finish] || FINISHES.black;
+        this.addWall('frame', wall, tt, e.w, e.h, zz, {
+          art: e.art, artSeed: e.artSeed, artKind: e.artKind, finish: fin.color, finishName: fin.name, mat: e.mat, lean: e.lean,
+          group: label, owned: e.owned, name: `${e.owned ? 'Your ' : ''}${sizeLabel(e.w, e.h)} frame${e.owned ? '' : ` (${fin.name})`}`,
+        });
+      } else if (e.type === 'mirror') {
+        this.addWall('mirror', wall, tt, e.w, e.h, zz, { round: e.round, group: label, name: `${Math.round(e.w / 0.0254)}" round mirror` });
+      } else if (e.type === 'shelf') {
+        this.addWall('shelf', wall, tt, e.w, 0.04, zz, { depth: e.depth, ledge: e.ledge, decor: Math.floor(this.rand() * 1e6), group: label, name: e.ledge ? `${Math.round(e.w / 0.0254)}" picture ledge` : `${Math.round(e.w / 0.0254)}" floating shelf` });
+      } else if (e.type === 'plantSmall') {
+        const p = add(add(wall.a, mul(wall.dir, tt)), mul(wall.n, 0.05));
+        this.topItems.push({ id: this.nextId++, type: 'plantSmall', name: ITEMS.plantSmall.name, x: p.x, y: p.y, z: zz + 0.04, theta: Math.atan2(wall.dir.y, wall.dir.x) });
+      }
+    }
+  }
+
+  /** Re-plan an inventory of the user's own frames across all free walls. */
+  galleryFromInventory(inventory) {
+    const ceiling = (this.room.height || 2.5) - 0.12;
+    const zones = [];
+    for (const wall of this.walls) {
+      for (const [s0, e0] of this.wallFree(wall, 1.2, ceiling)) {
+        if (e0 - s0 >= 0.4) zones.push({ wall, t0: s0, t1: e0, z0: 1.25, z1: ceiling });
+      }
+    }
+    const plan = planInventory(zones, inventory, { r: this.r, art: this.style.art, style: this.opts.style });
+    for (const g of plan.groups) {
+      const zz = clamp(1.5 - g.H / 2, g.zone.z0, g.zone.z1 - g.H);
+      const t = (g.zone.t0 + g.zone.t1) / 2;
+      this.placeGroup(g.zone.wall, t, zz, { elements: g.elements }, 'Your frames');
+      const frames = g.elements.filter((e) => e.type === 'frame');
+      const extra = g.elements.find((e) => e.type !== 'frame');
+      const pct = Math.round(g.coverage * 100);
+      this.note(`${this.wallLabel(g.zone.wall)[0].toUpperCase() + this.wallLabel(g.zone.wall).slice(1)}: ${frames.map((f) => sizeLabel(f.w, f.h)).join(' + ')}${extra ? ` + ${extra.label}` : ''} — ${Math.round(g.W / 0.0254)}" wide, ${pct > 40 ? 'fills that short stretch on its own, so leave the rest of the wall bare' : `about ${pct}% of the wall's art zone, leaving breathing room around it`}.`);
+    }
+    if (plan.leftovers.length) this.note(`Not hung: ${plan.leftovers.map((l) => `${l.count} × ${l.label}`).join(', ')}. Rotate them in by season or swap the anchor — fewer pieces on the wall reads cozier than every frame at once.`);
+    this.score += plan.groups.length * 2;
+    return plan;
   }
 
   /** Two staggered floating shelves (or one) on a free stretch of wall. */
@@ -393,7 +461,7 @@ class Layout {
       for (const sp of this.cornerSpots(s.w)) cands.push({ box: { x: sp.p.x, y: sp.p.y, w: s.w, d: s.d, theta: sp.theta }, where: 'in the corner' });
       // beside furniture along walls
       for (const it of this.items) {
-        if (it.flat || it.parent || ['coffeeTable', 'rug', 'chair', 'deskChair'].includes(it.type)) continue;
+        if (it.flat || it.parent || ['coffeeTable', 'rug', 'chair', 'deskChair', 'bench', 'armchair'].includes(it.type)) continue;
         for (const side of [-1, 1]) {
           const c = add(centerOf(it), add(mul(rightOf(it), side * (it.w / 2 + s.w / 2 + 0.08)), mul(frontOf(it), -it.d / 2 + s.d / 2 + 0.02)));
           cands.push({ box: { x: c.x, y: c.y, w: s.w, d: s.d, theta: it.theta }, where: `next to the ${it.name.toLowerCase()}` });
@@ -412,6 +480,13 @@ class Layout {
         const p = centerOf(c.box);
         let sc = 4;
         if (c.where === 'along the wall') sc -= 2;
+        if (this.opts.fengShui) {
+          const z = this.zoneAt(p);
+          if (z && (z.key === 'wealth' || z.key === 'family')) sc += 4;
+          if (z && z.key === 'health') sc -= 6; // keep the centre open
+        }
+        // plants belong against walls/corners, not out in the open floor
+        if (distToBoundary(p, this.poly) > 0.6) sc -= 8;
         const wd = this.nearestWindowDist(p);
         if (Number.isFinite(wd)) sc += 6 / (1 + wd); // plants want light
         sc -= 3 / (0.3 + this.doorDistance(p));
@@ -748,7 +823,7 @@ function livingRoom(L) {
   }
 
   // Wall decor
-  L.gallery(sofaC.wall, sofaC.t, sofa.w * 0.9, sofa.h + 0.3, sofa, 'Above the sofa');
+  L.gallery(sofaC.wall, sofaC.t, sofa.w, sofa.h + 0.23, sofa, 'Above the sofa');
   const shelfSpot = L.findShelfSpot(1.0, 1.15, 1.95, hit ? [hit.wall.i] : null);
   if (shelfSpot) {
     const sh = L.shelves(shelfSpot.wall, shelfSpot.t, 1.25, shelfSpot.width > 1.4 ? 2 : 1, Math.min(0.9, shelfSpot.width - 0.3));
@@ -777,11 +852,13 @@ function bedroom(L) {
     for (const dr of L.doors) {
       const toDoor = norm(sub(dr.pos, p));
       const facing = dot(frontOf(c.box), toDoor);
-      if (facing > 0.1 && facing < 0.92) sc += 4;
-      else if (facing >= 0.92) sc += 1; // directly in line ("coffin position")
-      else sc -= 3; // door behind/next to the headboard
+      const fs = L.opts.fengShui ? 2.5 : 1;
+      if (facing > 0.1 && facing < 0.92) sc += 4 * fs;
+      else if (facing >= 0.92) sc += L.opts.fengShui ? -10 : 1; // directly in line ("coffin position")
+      else sc -= 3 * fs; // door behind/next to the headboard
       if (dr.wall === c.wall.i) sc -= 2;
     }
+    if (L.opts.fengShui) sc -= L.windowsOnWall(c.wall, c.t - bs.w / 2, c.t + bs.w / 2).length * 6;
     sc -= Math.abs(c.t - (c.interval[0] + c.interval[1]) / 2) * 1.5;
     return sc;
   });
@@ -803,6 +880,7 @@ function bedroom(L) {
   }
   if (stands) L.note(`${stands === 2 ? 'Matching nightstands' : 'A nightstand'} with ${useSconces ? 'wall sconces above, leaving the top clear' : stands === 2 ? 'bedside lamps on both sides' : 'a bedside lamp'}.`);
 
+  if (L.opts.fengShui && L.area > 10) L.footBench(bed);
   const f = frontOf(bed);
   const rugW = bed.w + 1.1, rugD = Math.min(2.0, bed.d * 0.75);
   const rc = add(centerOf(bed), mul(f, bed.d / 2 - rugD / 2 + 0.55));
@@ -835,11 +913,12 @@ function bedroom(L) {
   if (dc) {
     dresser = L.add('dresser', dc.box, { clear: 0.7 });
     L.addTop('plantSmall', dresser, v(dresser.w / 2 - 0.18, 0));
-    if (L.fitsOnWall(dc.wall, dc.t, 0.7, dresser.h + 0.2, dresser.h + 1.1, dresser)) {
+    const mirrorSeesBed = dot(frontOf(dresser), norm(sub(centerOf(bed), centerOf(dresser)))) > 0.5;
+    if (!(L.opts.fengShui && mirrorSeesBed) && L.fitsOnWall(dc.wall, dc.t, 0.7, dresser.h + 0.2, dresser.h + 1.1, dresser)) {
       L.addWall('mirror', dc.wall, dc.t, 0.7, 0.9, dresser.h + 0.2, { round: L.rand() < 0.5 });
       L.note('Dresser with a mirror above it.');
     } else {
-      L.gallery(dc.wall, dc.t, dresser.w, dresser.h + 0.25, dresser, 'Above the dresser');
+      L.gallery(dc.wall, dc.t, dresser.w, dresser.h + 0.23, dresser, 'Above the dresser');
     }
   }
 
@@ -862,7 +941,7 @@ function bedroom(L) {
     }
   }
 
-  L.gallery(bedC.wall, bedC.t, bed.w * 1.0, Math.max(1.05, bed.h + 0.55), bed, 'Above the headboard');
+  L.gallery(bedC.wall, bedC.t, bed.w, 1.08 + 0.23, bed, 'Above the headboard');
   const spot = L.findShelfSpot(1.0, 1.2, 1.9);
   if (spot && L.rand() < 0.75) {
     const sh = L.shelves(spot.wall, spot.t, 1.3, 1, Math.min(0.8, spot.width - 0.3));
@@ -891,8 +970,8 @@ function office(L) {
     for (const dr of L.doors) {
       const toDoor = norm(sub(dr.pos, p));
       const behind = dot(frontOf(c.box), toDoor); // chair faces -front
-      if (behind > 0.8) sc -= 4;
-      else if (behind > 0.3) sc -= 1.5;
+      if (behind > 0.8) sc -= L.opts.fengShui ? 10 : 4;
+      else if (behind > 0.3) sc -= L.opts.fengShui ? 4 : 1.5;
       else sc += 1;
     }
     return sc;
@@ -939,11 +1018,11 @@ function office(L) {
   // Wall decor above the desk
   const sh = L.shelves(deskC.wall, deskC.t, 1.25, 2, Math.min(0.8, dw * 0.6));
   if (sh.length) L.note('Floating shelves above the desk keep essentials within reach.');
-  else L.gallery(deskC.wall, deskC.t, dw, 1.2, desk, 'Above the desk');
+  else L.gallery(deskC.wall, deskC.t, dw, 1.25, desk, 'Above the desk');
   const other = L.walls.filter((w) => w.i !== deskC.wall.i).sort((a, b) => b.length - a.length);
   for (const w of other) {
     const free = L.wallFree(w, 1.0, 1.9).sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]))[0];
-    if (free && free[1] - free[0] > 1.2 && L.gallery(w, (free[0] + free[1]) / 2, free[1] - free[0] - 0.4, 1.35, null, 'Feature wall')) break;
+    if (free && free[1] - free[0] > 1.2 && L.gallery(w, (free[0] + free[1]) / 2, free[1] - free[0] - 0.4, 1.0, null, 'Feature wall', { center: true })) break;
   }
   L.pendant(centerOf(desk), 'over the work area');
   L.placePlants(Math.round(clamp(L.area / 7, 1, 3) * L.style.plants));
@@ -1017,7 +1096,7 @@ function dining(L) {
     L.addTop('tableLamp', side, v(-side.w / 2 + 0.25, 0));
     L.addTop('plantSmall', side, v(side.w / 2 - 0.25, 0));
     L.note('Sideboard for serving and storage, styled with a lamp and a plant.');
-    if (!L.gallery(sc.wall, sc.t, side.w, side.h + 0.3, side, 'Above the sideboard')) {
+    if (!L.gallery(sc.wall, sc.t, side.w, side.h + 0.23, side, 'Above the sideboard')) {
       if (L.fitsOnWall(sc.wall, sc.t, 0.9, side.h + 0.25, side.h + 1.05, side)) L.addWall('mirror', sc.wall, sc.t, 0.9, 0.7, side.h + 0.25, { round: false });
     }
   }
@@ -1049,13 +1128,15 @@ function keepFurniture(L) {
     const parent = placed[t.parentIndex];
     if (parent) L.addTop(t.type, parent, v(t.offset?.x || 0, t.offset?.y || 0), { fixed: true });
   }
+  const rethink = L.opts.rethinkGallery && room.frameInventory;
   for (const w of room.fixedWall || []) {
+    if (rethink && w.type === 'frame') continue;
     const it = { id: L.nextId++, name: w.name || ITEMS[w.type]?.name || w.type, depth: 0.03, ...w };
     L.wallItems.push(it);
     // The floor under a wall-hung bike is a walkway: keep it clear.
     if (w.type === 'bike' && L.walls[w.wall]) L.keepOut.push(wallBox(L.walls[w.wall], w.t, w.width, Math.max(0.45, w.depth + 0.1), 0));
   }
-  L.note('Your furniture, gallery, bike and projection stay exactly where you planned them. Everything below is a suggestion to add.');
+  L.note(rethink ? 'Your furniture, bike and projection stay put; your frames are re-planned below for a cozier mix.' : 'Your furniture, gallery, bike and projection stay exactly where you planned them. Everything below is a suggestion to add.');
 
   const bed = placed.find((i) => i.type === 'bed' || i.type === 'singleBed');
   if (bed) {
@@ -1069,7 +1150,10 @@ function keepFurniture(L) {
     const rugD = Math.min(1.8, bed.d * 0.7);
     const rc = add(centerOf(bed), mul(f, bed.d / 2 - rugD / 2 + 0.5));
     L.placeRug(rc.x, rc.y, bed.w + 0.9, rugD, bed.theta, 'under the foot of the bed, sticking out toward the open floor');
+    if (L.opts.fengShui) L.footBench(bed);
   }
+
+  if (rethink) L.galleryFromInventory(room.frameInventory);
 
   // Full-length mirror: a free stretch of wall at floor level, ideally near the closet/dresser.
   const mirrorCands = [];
@@ -1079,7 +1163,11 @@ function keepFurniture(L) {
         if (e - s < mw) continue;
         for (const t of [s + mw / 2, (s + e) / 2, e - mw / 2]) {
           const b = wallBox(wall, t, mw, 0.05, 0);
-          if (L.canPlace(b)) mirrorCands.push({ wall, t, b, mw });
+          if (!L.canPlace(b)) continue;
+          if (L.opts.fengShui && bed) {
+            if (mirrorSees(wall, t, bed)) continue; // would reflect the bed
+          }
+          mirrorCands.push({ wall, t, b, mw });
         }
       }
     }
@@ -1097,15 +1185,16 @@ function keepFurniture(L) {
     const tall = mpick.mw < 0.45 ? 1.22 : 1.5;
     L.addWall('floorMirror', mpick.wall, mpick.t, mpick.mw, tall, 0.05, { depth: 0.05, name: `Full-length mirror ${Math.round(mpick.mw / 0.0254)}×${Math.round(tall / 0.0254)}"` });
     const nearCloset = closet && dist(centerOf(mpick.b), closet.pos) < 1.2;
-    L.note(`${Math.round(mpick.mw / 0.0254)}" × ${Math.round(tall / 0.0254)}" full-length mirror wall-mounted on the ${(mpick.wall.length / 0.0254 / 12).toFixed(1)}' wall${nearCloset ? ', right next to the closet for getting dressed' : ''} — mounted flat so it doesn't eat floor space.`);
+    L.note(`${Math.round(mpick.mw / 0.0254)}" × ${Math.round(tall / 0.0254)}" full-length mirror wall-mounted on the ${L.wallLabel(mpick.wall)}${nearCloset ? ', right next to the closet for getting dressed' : ''} — mounted flat so it doesn't eat floor space.`);
   } else if (L.doors.some((d) => d.swing !== 'none')) {
     L.note('No free wall at floor level for a full-length mirror — an over-the-door mirror on the room door is the space-free option.');
   }
 
-  const spot = L.findShelfSpot(0.8, 1.2, 1.9);
+  const galleryHasShelf = L.wallItems.some((w) => w.group === 'Your frames' && w.type === 'shelf');
+  const spot = galleryHasShelf ? null : L.findShelfSpot(0.8, 1.2, 1.9);
   if (spot) {
     const sh = L.shelves(spot.wall, spot.t, 1.35, spot.width > 1.3 ? 2 : 1, Math.min(0.75, spot.width - 0.25));
-    if (sh.length) L.note(`${sh.length === 2 ? 'Two staggered floating shelves' : 'A floating shelf'} with a trailing plant on the free stretch of the ${(spot.wall.length / 0.0254 / 12).toFixed(1)}' wall.`);
+    if (sh.length) L.note(`${sh.length === 2 ? 'Two staggered floating shelves' : 'A floating shelf'} with a trailing plant on the free stretch of the ${L.wallLabel(spot.wall)}.`);
   }
   L.placePlants(Math.max(1, Math.round(clamp(L.area / 7, 1, 3) * L.style.plants)));
   if (L.windows.length) L.hangingPlant();
@@ -1140,7 +1229,10 @@ export function generateDesigns(room, opts) {
     const L = new Layout(room, opts, makeRng(seed * 1000003 + k * 7919 + 13));
     template(L);
     L.evaluate();
-    all.push(L.toDesign());
+    const d = L.toDesign();
+    d.fengShui = fengShuiReport(room, d);
+    if (opts.fengShui) d.score += d.fengShui.score * 0.4;
+    all.push(d);
   }
   all.sort((a, b) => b.score - a.score);
   const seen = new Set();

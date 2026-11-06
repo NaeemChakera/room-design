@@ -6,6 +6,8 @@ import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces } from './cata
 import { generateDesigns } from './designer.js';
 import { drawDesign, drawWalls, drawDimensions, drawFloor, makeView } from './render2d.js';
 import { PRESETS, rectRoom } from './presets.js';
+import { shoppingList, totals, STORES, LOCAL_LINKS, FLEA_TIPS } from './shopping.js';
+import { baguaFrame, baguaCells } from './fengshui.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -54,6 +56,11 @@ const state = {
   roomType: 'bedroom',
   style: 'scandinavian',
   keep: true,
+  fengShui: false,
+  rethink: false,
+  showBagua: true,
+  have: [],
+  buyFilter: 'all',
   designs: [],
   designIdx: 0,
   seed: 1,
@@ -64,8 +71,8 @@ const state = {
 
 function save() {
   try {
-    const { room, closed, roomType, style, units, keep, step } = state;
-    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, step: Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
+    const { room, closed, roomType, style, units, keep, step, fengShui, rethink, showBagua, have } = state;
+    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, fengShui, rethink, showBagua, have, step: Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
   } catch { /* storage unavailable */ }
 }
 
@@ -196,6 +203,7 @@ function render() {
 
   if (design) {
     drawDesign(ctx, room, design, { hoverId: hover?.id });
+    if (state.fengShui && state.showBagua) drawBagua(room);
   } else {
     drawFloor(ctx, room.points, neutral);
     if (room.fixed && state.step >= 1) {
@@ -234,6 +242,38 @@ function render() {
     ctx.strokeStyle = '#2d6cdf'; ctx.lineWidth = 0.14; ctx.globalAlpha = 0.5;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.globalAlpha = 1;
   }
+}
+
+function drawBagua(room) {
+  const frame = baguaFrame(room);
+  if (!frame) return;
+  ctx.save();
+  ctx.beginPath();
+  room.points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.closePath();
+  ctx.clip();
+  for (const c of baguaCells(frame)) {
+    ctx.beginPath();
+    c.poly.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.closePath();
+    ctx.globalAlpha = 0.16; ctx.fillStyle = c.zone.colors[0]; ctx.fill();
+    ctx.globalAlpha = 0.6; ctx.setLineDash([0.06, 0.05]); ctx.lineWidth = 0.012; ctx.strokeStyle = '#5b5750'; ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const c of baguaCells(frame)) {
+    if (!pointInPolygon(c.center, room.points)) continue;
+    const s = toScreen(c.center);
+    const t = c.zone.name.replace(' (centre)', '');
+    const w = ctx.measureText(t).width + 10;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.beginPath(); ctx.roundRect(s.x - w / 2, s.y - 9, w, 18, 9); ctx.fill();
+    ctx.fillStyle = '#3a3631'; ctx.fillText(t, s.x, s.y + 0.5);
+  }
+  ctx.restore();
+  applyWorld();
 }
 
 // ---------------------------------------------------------------------------
@@ -770,6 +810,9 @@ function renderDesignControls() {
   }
   $('#keepWrap').hidden = !state.room.fixed;
   $('#keepToggle').checked = state.keep;
+  $('#rethinkWrap').hidden = !(state.room.frameInventory && state.keep);
+  $('#rethinkToggle').checked = state.rethink;
+  $('#fsToggle').checked = state.fengShui;
   const st = $('#styles');
   st.innerHTML = '';
   for (const [k, s] of Object.entries(STYLES)) {
@@ -794,7 +837,7 @@ function runDesign(newSeed = true) {
   const btn = $('#generate');
   btn.disabled = true; btn.textContent = 'Designing…';
   setTimeout(() => {
-    state.designs = generateDesigns(state.room, { roomType: state.roomType, style: state.style, seed: state.seed, iterations: 70, keep });
+    state.designs = generateDesigns(state.room, { roomType: state.roomType, style: state.style, seed: state.seed, iterations: 70, keep, fengShui: state.fengShui, rethinkGallery: keep && state.rethink });
     state.designIdx = 0;
     btn.disabled = false; btn.textContent = '🔄 Try more layouts';
     renderResults();
@@ -845,6 +888,62 @@ function renderResults() {
   for (const t of d.topItems) addRow(t.name, '', !!t.fixed);
   const sorted = [...rows.values()].sort((a, b) => a.fixed - b.fixed);
   $('#shop').innerHTML = sorted.map((r) => `<tr class="${r.fixed ? 'fixed' : ''}"><td>${r.n > 1 ? `${r.n} × ` : ''}${r.name}</td><td>${r.dims}</td></tr>`).join('');
+  renderFengShui(d);
+  renderBuyList(d);
+}
+
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function renderFengShui(d) {
+  $('#fsPanel').hidden = !state.fengShui;
+  if (!state.fengShui || !d.fengShui) return;
+  const fs = d.fengShui;
+  $('#fsScore').textContent = `${fs.score}/100`;
+  const icon = { good: '✓', warn: '!', bad: '✕', tip: 'i' };
+  const order = { bad: 0, warn: 1, tip: 2, good: 3 };
+  $('#fsChecks').innerHTML = fs.checks.slice().sort((a, b) => order[a.status] - order[b.status]).map((c) => `<li class="${c.status}"><b>${icon[c.status]} ${esc(c.title)}</b>${esc(c.detail)}${c.fix ? `<div class="fix"><b style="display:inline">Fix:</b> ${esc(c.fix)}</div>` : ''}</li>`).join('');
+  $('#fsZones').innerHTML = fs.zones.map((z) => `<div><b><i style="background:${z.colors[0]}"></i>${esc(z.name)}</b>${z.element} · ${esc(z.tip)}${z.contains.length ? `<br><span class="muted">Here now: ${esc([...new Set(z.contains)].slice(0, 3).join(', '))}</span>` : ''}</div>`).join('');
+  $('#baguaToggle').checked = state.showBagua;
+}
+
+let buyRows = [];
+function renderBuyList(d) {
+  const styleName = (STYLES[state.style] || STYLES.scandinavian).name;
+  buyRows = shoppingList(d, { styleName });
+  const have = new Set(state.have);
+  const list = $('#buyList');
+  const show = buyRows.filter((r) => state.buyFilter === 'all' || (state.buyFilter === 'thrift' ? r.shop.verdict === 'thrift' : r.shop.verdict === 'new'));
+  const verdictLabel = { thrift: 'Thrift it', new: 'Buy new', either: 'New or used' };
+  list.innerHTML = show.length ? show.map((r) => {
+    const stores = STORES.slice().sort((a, b) => (r.shop.verdict === 'thrift' ? (a.kind === 'new') - (b.kind === 'new') : (a.kind !== 'new') - (b.kind !== 'new')));
+    return `<li class="${have.has(r.key) ? 'have' : ''}" data-key="${esc(r.key)}">
+      <label class="top"><input type="checkbox" ${have.has(r.key) ? 'checked' : ''} aria-label="I already have this" />
+        <span><span class="name">${r.qty > 1 ? `${r.qty} × ` : ''}${esc(r.name)}</span> <span class="size">${esc(r.size)}</span></span></label>
+      <div class="price">New $${r.shop.new[0]}–${r.shop.new[1]} · Secondhand $${r.shop.used[0]}–${r.shop.used[1]} <span class="badge ${r.shop.verdict}">${verdictLabel[r.shop.verdict]}</span></div>
+      <div class="tip">${esc(r.shop.tip)}</div>
+      <div class="links">${stores.map((st) => `<a href="${st.url(r.query)}" target="_blank" rel="noopener" class="${st.kind !== 'new' ? 'used' : ''}">${st.name}</a>`).join('')}</div>
+    </li>`;
+  }).join('') : '<li class="muted small">Nothing in this filter.</li>';
+  list.querySelectorAll('li[data-key] input').forEach((inp) => inp.addEventListener('change', (e) => {
+    const key = e.target.closest('li').dataset.key;
+    const s2 = new Set(state.have);
+    if (e.target.checked) s2.add(key); else s2.delete(key);
+    state.have = [...s2];
+    save();
+    renderBuyList(d);
+  }));
+  const t = totals(buyRows, have);
+  $('#buyTotal').textContent = t.newHi ? `≈ $${t.mixLo}–${t.mixHi} thrifting · $${t.newLo}–${t.newHi} new` : 'all set';
+  $$('#buyFilter button').forEach((b) => b.classList.toggle('active', b.dataset.f === state.buyFilter));
+  $('#localLinks').innerHTML = LOCAL_LINKS.map((l) => `<a href="${l.url}" target="_blank" rel="noopener">📍 ${l.name}</a>`).join(' · ');
+  $('#fleaTips').innerHTML = FLEA_TIPS.map((x) => `<li>${esc(x)}</li>`).join('');
+}
+
+function buyListText() {
+  const have = new Set(state.have);
+  const lines = buyRows.filter((r) => !have.has(r.key)).map((r) => `☐ ${r.qty > 1 ? `${r.qty} × ` : ''}${r.name} — ${r.size} — new $${r.shop.new[0]}–${r.shop.new[1]}, used $${r.shop.used[0]}–${r.shop.used[1]}${r.shop.verdict === 'thrift' ? ' (look secondhand first)' : r.shop.verdict === 'new' ? ' (buy new)' : ''}`);
+  const t = totals(buyRows, have);
+  return `Roomcraft shopping list\n\n${lines.join('\n')}\n\nBudget: about $${t.mixLo}–${t.mixHi} thrifting, $${t.newLo}–${t.newHi} all new.`;
 }
 
 let v3d = null;
@@ -944,7 +1043,21 @@ $('#wallStyle').addEventListener('change', (e) => {
   else state.room.wallColor = $('#wallColor').value;
   surfacesChanged(false);
 });
-$('#keepToggle').addEventListener('change', (e) => { state.keep = e.target.checked; save(); if (state.designs.length) runDesign(false); });
+$('#keepToggle').addEventListener('change', (e) => { state.keep = e.target.checked; renderDesignControls(); save(); if (state.designs.length) runDesign(false); });
+$('#rethinkToggle').addEventListener('change', (e) => { state.rethink = e.target.checked; save(); if (state.designs.length) runDesign(false); });
+$('#fsToggle').addEventListener('change', (e) => { state.fengShui = e.target.checked; save(); if (state.designs.length) runDesign(false); });
+$('#baguaToggle').addEventListener('change', (e) => { state.showBagua = e.target.checked; save(); render(); });
+$$('#buyFilter button').forEach((b) => b.addEventListener('click', () => { state.buyFilter = b.dataset.f; renderBuyList(state.designs[state.designIdx]); }));
+$('#copyList').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(buyListText()); $('#copyList').textContent = '✓ Copied'; } catch { prompt('Copy your list:', buyListText()); }
+  setTimeout(() => { $('#copyList').textContent = '📋 Copy list'; }, 1500);
+});
+$('#printList').addEventListener('click', () => {
+  const w = window.open('', '_blank');
+  if (!w) return;
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Shopping list</title><style>body{font:15px/1.5 system-ui,sans-serif;margin:32px;max-width:700px}li{margin:6px 0}</style><h1>Shopping list</h1><pre style="white-space:pre-wrap;font:inherit">${esc(buyListText())}</pre><h2>Flea market tips</h2><ul>${FLEA_TIPS.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`);
+  w.document.close(); w.focus(); w.print();
+});
 $$('#viewTabs button').forEach((b) => b.addEventListener('click', () => setView3D(b.dataset.view === '3d')));
 $('#zoomIn').addEventListener('click', () => zoomAt(v(canvas.clientWidth / 2, canvas.clientHeight / 2), 1.25));
 $('#zoomOut').addEventListener('click', () => zoomAt(v(canvas.clientWidth / 2, canvas.clientHeight / 2), 0.8));

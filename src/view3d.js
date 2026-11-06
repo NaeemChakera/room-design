@@ -231,6 +231,12 @@ function buildItem(it, S, lights) {
       g.add(cyl(0.28, 0.28, 0.03, metal, 0, 0, 0, 5));
       break;
     }
+    case 'bench': {
+      g.add(box(w, 0.06, d, wood, 0, h - 0.06, 0));
+      g.add(box(w - 0.06, 0.05, d - 0.06, mat(S.fabric2, { roughness: 1 }), 0, h, 0));
+      legs(g, w, d, h - 0.06, woodDark, 0.05, 0.02);
+      break;
+    }
     case 'chair': {
       g.add(box(w, 0.04, d, woodDark, 0, 0.45, 0));
       g.add(box(w, 0.04, d - 0.08, fabric, 0, 0.49, 0.02));
@@ -337,16 +343,23 @@ function buildWallItem(wi, S, lights) {
   const g = new THREE.Group();
   switch (wi.type) {
     case 'frame': {
-      const t = S.frameStyle === 'thick' ? 0.035 : 0.02;
-      g.add(box(wi.width, wi.height, 0.03, mat(S.frame), 0, 0, 0.015));
-      const art = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - t * 2 - 0.04, wi.height - t * 2 - 0.04), new THREE.MeshStandardMaterial({ map: artTexture(wi.art, wi.artSeed || 1, S), roughness: 0.9 }));
+      const t = S.frameStyle === 'thick' || wi.width > 0.5 ? 0.035 : 0.022;
+      const matW = wi.mat === false ? 0 : wi.mat ? Math.min(0.07, wi.width * 0.12) : 0.015;
+      g.add(box(wi.width, wi.height, 0.03, mat(wi.finish || S.frame, { roughness: wi.finishName === 'brass' ? 0.35 : 0.7, metalness: wi.finishName === 'brass' ? 0.6 : 0 }), 0, 0, 0.015));
+      const art = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.02, wi.width - t * 2 - matW * 2), Math.max(0.02, wi.height - t * 2 - matW * 2)), new THREE.MeshStandardMaterial({ map: artTexture(wi.art, wi.artSeed || 1, S), roughness: 0.9 }));
       art.position.set(0, wi.height / 2, 0.031);
       const mount = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - t * 2, wi.height - t * 2), mat('#fbf8f2'));
       mount.position.set(0, wi.height / 2, 0.0305);
       g.add(mount, art);
+      if (wi.lean) { g.position.z += 0.05; g.rotation.x = -0.07; }
       break;
     }
     case 'shelf': {
+      if (wi.ledge) {
+        g.add(box(wi.width, 0.03, wi.depth, mat(S.wood), 0, 0, wi.depth / 2));
+        g.add(box(wi.width, 0.035, 0.012, mat(S.wood), 0, 0.02, wi.depth - 0.006)); // lip
+        break;
+      }
       g.add(box(wi.width, 0.04, wi.depth, mat(S.wood), 0, 0, wi.depth / 2));
       const r = rng(wi.decor || 3);
       let x = -wi.width / 2 + 0.05;

@@ -60,3 +60,25 @@ test('carpet: no rug in bedroom, flat-weave in living room', () => {
   const naeem = generateDesigns(naeemBedroom(), { roomType: 'bedroom', style: 'scandinavian', keep: true, iterations: 10 })[0];
   assert.ok(!naeem.items.some((i) => i.type === 'rug'));
 });
+
+test('naeem: re-planned frames spread out with breathing room', () => {
+  const room = naeemBedroom();
+  const d = generateDesigns(room, { roomType: 'bedroom', style: 'scandinavian', keep: true, rethinkGallery: true, iterations: 10 })[0];
+  const frames = d.wallItems.filter((w) => w.type === 'frame');
+  const walls = new Set(frames.map((f) => f.wall));
+  console.log('rethink', frames.map((f) => `${f.wall}:${f.name}`).join(' | '));
+  console.log(d.notes.filter((n) => /wall:|Not hung/.test(n)).join('\n'));
+  assert.ok(walls.size >= 2, 'frames on at least two walls');
+  assert.ok(frames.length < 10, 'not every frame hung');
+  assert.ok(d.wallItems.some((w) => (w.type === 'shelf' || w.type === 'mirror') && w.group === 'Your frames'), 'non-frame element mixed in');
+  console.log('feng shui', d.fengShui.score, d.fengShui.checks.map((c) => `${c.status}:${c.title}`).join(' | '));
+});
+
+test('feng shui mode avoids coffin position for a fresh bedroom', () => {
+  for (const r of Object.values(rooms)) {
+    const d = generateDesigns(r, { roomType: 'bedroom', style: 'japandi', fengShui: true, iterations: 30 })[0];
+    const bad = d.fengShui.checks.filter((c) => c.status === 'bad').map((c) => c.title);
+    console.log('fs', d.fengShui.score, bad);
+    assert.ok(!bad.includes('Feet point at the door ("coffin position")'));
+  }
+});

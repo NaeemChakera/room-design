@@ -29,6 +29,12 @@ The site goes live at `https://<your-username>.github.io/room-design/`.
 
 If a room includes your own furniture (like the preset of Naeem's bedroom), **Keep my furniture** leaves every piece where you planned it and only suggests things to add around it.
 
+### Feng shui, shopping and frames
+
+- **Feng shui mode** (`src/fengshui.js`) puts the bed and desk in the command position (you can see the door, but you aren't in line with it). It also avoids feet pointing at the door, keeps mirrors from facing the bed, warns about sharp corners near the bed, and adds a bench at the foot of the bed when that helps. You get a feng shui report with fixes, plus a bagua map drawn on the plan and aligned with the main door. It's a traditional practice, not science, and the app says so.
+- **What to buy** (`src/shopping.js`): every new item gets a search built from its size and style, for Amazon, IKEA, Etsy, Facebook Marketplace, OfferUp and eBay. Each item shows rough new and secondhand prices, a label for whether it's better bought secondhand or new, and an "I already have this" checkbox. There's also a budget total, a printable flea-market list and thrift tips.
+- **Frame walls** (`src/gallery.js`) follow common gallery-wall guidance: 1–3 anchor pieces plus smaller ones, 2–3" gaps, about 60–75% of the width of the furniture below, 8–10" above that furniture, 2–3 repeated finishes, and mostly empty wall. Bedroom groups favour relaxed clusters, picture ledges and a frame paired with a shelf. **Re-plan my frames** takes your own frame collection and spreads it across your walls, with one large piece per wall and one shelf or mirror mixed in. Pieces that don't fit are listed to rotate in later.
+
 ### The design engine (`src/designer.js`)
 
 - Each piece of furniture gets candidate spots, mostly with its back against a wall. A spot is rejected if it's outside the room, overlaps something, sits in a door swing, blocks another piece's clearance (wardrobe doors, dresser drawers) or would hit an open door leaf.

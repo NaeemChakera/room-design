@@ -65,6 +65,9 @@ export function naeemBedroom() {
       { id: 'window', type: 'window', wall: 2, t: 37 * IN, width: 66 * IN, sill: 34 * IN, height: 47 * IN },
       { id: 'closet', type: 'door', wall: 4, t: 34 * IN, width: 32 * IN, swing: 'none', label: 'Closet' },
     ],
+    // Frame inventory (inches, as hung): 2 × 24×36 portrait, 4 × 18×24 landscape, 4 × 12×16 portrait.
+    wallNames: ['projector wall', 'poster wall', 'window wall', 'closet-bump side', 'closet wall', 'desk wall'],
+    frameInventory: [{ w: 24, h: 36, count: 2 }, { w: 24, h: 18, count: 4 }, { w: 12, h: 16, count: 4 }],
     tips: [
       'Walkway: the 18" gap between the bed and the poster wall sits under the bike — tight but usable (16" minimum).',
       'Option: replace the lamp on the corner lamp table with a wall sconce to let the projection grow from ~87" toward ~95".',

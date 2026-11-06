@@ -161,3 +161,41 @@ summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 
 .surface-row label { display: flex; align-items: center; gap: 6px; }
 .surface-row input[type="color"] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+
+.pill { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 12px; font-weight: 600; }
+.fs-checks { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.fs-checks li { padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); border-left-width: 4px; }
+.fs-checks li.good { border-left-color: #3f8a4f; }
+.fs-checks li.warn { border-left-color: #d79a2b; }
+.fs-checks li.bad { border-left-color: #c0392b; }
+.fs-checks li.tip { border-left-color: #7d8a96; }
+.fs-checks b { display: block; }
+.fs-checks .fix { margin-top: 4px; font-size: 12.5px; }
+.zones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 8px 0; }
+.zones div { border-radius: 8px; padding: 6px; font-size: 11.5px; line-height: 1.3; border: 1px solid var(--line); background: var(--card); }
+.zones div b { display: block; font-size: 12px; }
+.zones i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 1px solid rgba(0,0,0,0.15); }
+.small-chips button { padding: 4px 10px; font-size: 12.5px; }
+.buy { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.buy li { padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); }
+.buy li.have { opacity: 0.55; }
+.buy li.have .name { text-decoration: line-through; }
+.buy .top { display: flex; gap: 8px; align-items: flex-start; }
+.buy .top input { margin-top: 3px; }
+.buy .name { font-weight: 600; }
+.buy .size { color: var(--muted); font-size: 12px; }
+.buy .price { font-size: 12.5px; margin: 4px 0 2px 24px; }
+.buy .tip { font-size: 12px; color: var(--muted); margin-left: 24px; }
+.buy .links { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 24px; }
+.buy .links a { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); text-decoration: none; color: var(--ink); background: var(--panel); }
+.buy .links a.used { border-color: #3f8a4f; }
+.badge { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.badge.thrift { background: #e3f1e5; color: #2e6b3a; }
+.badge.new { background: #fbe9e6; color: #9b3a28; }
+.badge.either { background: #ecebe7; color: #5b5750; }
+.local a { font-size: 12.5px; }
+
+.toggle-help { margin: -8px 0 12px 26px; }
+
+.fs-checks li.warn, .fs-checks li.bad { color: inherit; font-weight: normal; }
+.fs-checks li b { font-weight: 700; }

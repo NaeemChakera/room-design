@@ -136,6 +136,11 @@
           <div id="keepWrap" hidden>
             <label class="toggle"><input type="checkbox" id="keepToggle" checked /> Keep my furniture, only add decor</label>
           </div>
+          <div id="rethinkWrap" hidden>
+            <label class="toggle"><input type="checkbox" id="rethinkToggle" /> Re-plan my frames for a cozier mix</label>
+          </div>
+          <label class="toggle"><input type="checkbox" id="fsToggle" /> ☯ Feng shui mode</label>
+          <p class="small muted toggle-help">Puts the bed and desk where you can see the door, keeps mirrors from facing the bed, and places plants by the bagua map.</p>
           <label class="lbl">Style</label>
           <div class="styles" id="styles"></div>
           <button class="btn primary wide" id="generate">✨ Design my room</button>
@@ -149,8 +154,34 @@
             <summary>Why it's laid out this way</summary>
             <ul class="notes" id="notes"></ul>
           </details>
+          <details id="fsPanel" open hidden>
+            <summary>☯ Feng shui <span class="pill" id="fsScore"></span></summary>
+            <label class="toggle small"><input type="checkbox" id="baguaToggle" checked /> Show the bagua map on the plan</label>
+            <ul class="fs-checks" id="fsChecks"></ul>
+            <div class="zones" id="fsZones"></div>
+            <p class="small muted">Feng shui is a traditional practice, not science: keep what feels right for you.</p>
+          </details>
+          <details id="buyPanel" open>
+            <summary>🛒 What to buy <span class="pill" id="buyTotal"></span></summary>
+            <div class="chips small-chips" id="buyFilter">
+              <button data-f="all" class="active">Everything</button>
+              <button data-f="thrift">Best secondhand</button>
+              <button data-f="new">Buy new</button>
+            </div>
+            <ul class="buy" id="buyList"></ul>
+            <div class="row">
+              <button class="btn small" id="copyList">📋 Copy list</button>
+              <button class="btn small" id="printList">🖨 Print for the flea market</button>
+            </div>
+            <div class="row local" id="localLinks"></div>
+            <details>
+              <summary>Flea market &amp; thrift tips</summary>
+              <ul class="notes" id="fleaTips"></ul>
+            </details>
+            <p class="small muted">Prices are rough US ranges to help you budget. Links open a search — compare before you buy.</p>
+          </details>
           <details>
-            <summary>Shopping &amp; placement list</summary>
+            <summary>Placement list (sizes &amp; heights)</summary>
             <table class="shop" id="shop"></table>
           </details>
           <details>
