@@ -302,6 +302,12 @@ function drawWallItem(ctx, wi, wall, S) {
     case 'sign':
       ctx.fillStyle = '#2f5d3a'; ctx.fillRect(-hw, -0.015, wi.width, 0.03);
       break;
+    case 'screen':
+      ctx.fillStyle = '#2b2b2b'; ctx.fillRect(-hw - 0.05, -0.05, wi.width + 0.1, 0.1); // case
+      ctx.fillStyle = '#f4f4f2'; ctx.fillRect(-hw, -0.02, wi.width, 0.04);
+      ctx.save(); ctx.setLineDash([0.06, 0.04]); ctx.strokeStyle = 'rgba(80,90,200,0.5)'; ctx.lineWidth = 0.012;
+      ctx.beginPath(); ctx.moveTo(-hw, 0); ctx.lineTo(-0.05, wi.width * 1.4); ctx.moveTo(hw, 0); ctx.lineTo(0.05, wi.width * 1.4); ctx.stroke(); ctx.restore();
+      break;
     case 'sconce':
       drawLampGlow(ctx, 0.5);
       ctx.beginPath(); ctx.arc(0, 0, 0.07, 0, 7); fillStroke(ctx, '#fff3d6', S.metal, 0.015);
@@ -398,6 +404,17 @@ export function drawWalls(ctx, poly, openings, opts = {}) {
         const e = add(q, mul(w.n, -WALL_T));
         ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(e.x, e.y); ctx.stroke();
       }
+    } else if (o.swing === 'slide') {
+      // sliding wardrobe doors: two overlapping panels in the wall thickness
+      ctx.strokeStyle = selected ? '#2d6cdf' : '#5b544c'; ctx.lineWidth = 0.025;
+      const m = add(a, mul(w.dir, o.width / 2));
+      for (const [p0, p1, k] of [[a, add(m, mul(w.dir, 0.05)), -0.025], [add(m, mul(w.dir, -0.05)), b, -0.075]]) {
+        const off = mul(w.n, k);
+        ctx.beginPath(); ctx.moveTo(p0.x + off.x, p0.y + off.y); ctx.lineTo(p1.x + off.x, p1.y + off.y); ctx.stroke();
+      }
+      ctx.fillStyle = '#5b544c'; ctx.font = '0.09px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const lp = add(m, mul(w.n, 0.08));
+      ctx.fillText('wardrobe', lp.x, lp.y);
     } else {
       // door leaf + swing arc into the room
       const hingeLeft = o.hinge !== 'right';
@@ -414,6 +431,11 @@ export function drawWalls(ctx, poly, openings, opts = {}) {
       while (delta < -Math.PI) delta += 2 * Math.PI;
       ctx.beginPath(); ctx.arc(hinge.x, hinge.y, o.width, a0, a0 + delta, delta < 0); ctx.stroke();
       ctx.setLineDash([]);
+      if (o.kind === 'bathroom') {
+        const lp = add(add(a, mul(w.dir, o.width / 2)), mul(w.n, -WALL_T * 2.2));
+        ctx.fillStyle = '#3f7f99'; ctx.font = '600 0.14px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('bath', lp.x, lp.y);
+      }
     }
     ctx.lineCap = 'square';
   }

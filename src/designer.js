@@ -80,12 +80,17 @@ class Layout {
     this.doors = this.openings.filter((o) => o.type === 'door');
     this.windows = this.openings.filter((o) => o.type === 'window');
 
-    // Door swing / entry zones: nothing may stand here.
+    // The room's entry door(s): not bathroom, wardrobe or open closet doorways.
+    const isEntry = (d) => (!d.kind || d.kind === 'entry') && d.swing !== 'none' && d.swing !== 'slide';
+    this.entryDoors = this.doors.filter(isEntry);
+    if (!this.entryDoors.length) this.entryDoors = this.doors.slice(0, 1);
+    this.bathDoors = this.doors.filter((d) => d.kind === 'bathroom');
+
+    // Door swing / entry zones: nothing may stand here. Sliding wardrobe doors just need access space.
     this.keepOut = this.doors.map((o) => {
       const w = o.wallObj;
-      const depth = Math.max(o.width, 0.8) + 0.1;
-      const b = wallBox(w, o.t, o.width + 0.15, depth, 0);
-      return b;
+      const depth = o.swing === 'slide' ? 0.65 : Math.max(o.width, 0.8) + 0.1;
+      return wallBox(w, o.t, o.width + 0.15, depth, 0);
     });
   }
 
@@ -214,7 +219,7 @@ class Layout {
     // An open door leaf lies against the wall next to its hinge: keep that stretch clear.
     if (z0 < DOOR_HEIGHT) {
       for (const dr of this.doors) {
-        if (dr.swing === 'none') continue;
+        if (dr.swing === 'none' || dr.swing === 'slide') continue;
         const dw = dr.wallObj;
         const hinge = add(dw.a, mul(dw.dir, dr.hinge === 'right' ? dr.t + dr.width / 2 : dr.t - dr.width / 2));
         let s0 = null;
@@ -297,11 +302,43 @@ class Layout {
   }
 
   hasCloset() {
-    return this.room.hasCloset || this.doors.some((d) => d.swing === 'none' && /closet|wardrobe/i.test(d.label || ''));
+    return this.room.hasCloset || this.doors.some((d) => d.kind === 'wardrobe' || (d.swing === 'none' && /closet|wardrobe/i.test(d.label || '')));
   }
 
   wallLabel(wall) {
     return this.room.wallNames?.[wall.i] || `${(wall.length / 0.0254 / 12).toFixed(1)}' wall`;
+  }
+
+  /** Pull-down projector screen on the wall a bed/sofa faces, with a ceiling projector. */
+  projectorSetup(viewer, who) {
+    if (!this.want('projector')) return false;
+    if (this.wallItems.some((w) => w.type === 'projection' || w.type === 'screen')) return false;
+    const f = frontOf(viewer);
+    const start = add(centerOf(viewer), mul(f, viewer.d / 2));
+    const hit = raycastWalls(start, f, this.walls);
+    if (!hit || hit.distance < 1.6) return false;
+    const z = who === 'bed' ? 0.95 : 0.85;
+    const ceiling = (this.room.height || 2.5) - 0.12;
+    for (const diag of [100, 90, 80, 70, 60]) {
+      const w = diag * 0.0254 * 16 / Math.hypot(16, 9), h = w * 9 / 16;
+      if (z + h + 0.12 > ceiling) continue;
+      // keep the screen a comfortable size for the distance (~1.2–1.6× its width)
+      if (hit.distance < w * 1.1) continue;
+      for (const off of [0, 0.15, -0.15, 0.3, -0.3, 0.5, -0.5]) {
+        const t = hit.t + off;
+        if (t - w / 2 < 0.05 || t + w / 2 > hit.wall.length - 0.05) continue;
+        if (!this.fitsOnWall(hit.wall, t, w + 0.1, z - 0.02, z + h + 0.12)) continue;
+        this.addWall('screen', hit.wall, t, w, h, z, { depth: 0.08, name: `${diag}" projector screen`, diag });
+        const throwD = Math.min(w * 1.5, hit.distance + viewer.d * 0.5);
+        const pp = add(add(hit.wall.a, mul(hit.wall.dir, t)), mul(hit.wall.n, throwD));
+        this.topItems.push({ id: this.nextId++, type: 'projector', name: 'Ceiling projector', x: pp.x, y: pp.y, z: (this.room.height || 2.5) - 0.25, ceiling: true, theta: Math.atan2(hit.wall.dir.y, hit.wall.dir.x) });
+        this.note(`${diag}" pull-down projector screen on the wall the ${who} faces, ${Math.round(z / 0.0254)}" off the floor; projector on the ceiling about ${(throwD / 0.3048).toFixed(1)}' back (a standard ~1.5 throw ratio).`);
+        this.score += 3;
+        return true;
+      }
+    }
+    this.note(`Not enough clear wall opposite the ${who} for a projector screen.`);
+    return false;
   }
 
   /** Feng shui fix: a bench at the foot of the bed blocks a straight line to the door. */
@@ -452,11 +489,15 @@ class Layout {
 
   placePlants(count) {
     if (!this.want('plants')) return 0;
+    // Floor plants: one large statement plant plus at most one medium; small ones live on surfaces.
+    count = Math.min(count, 2 - this.items.filter((i) => i.type === 'plantLarge' || i.type === 'plantMedium').length);
     let placed = 0;
     const types = ['plantLarge', 'plantMedium'];
     for (let k = 0; k < count; k++) {
-      const first = k === 0 || this.rand() < 0.5 ? types[0] : types[1];
-      const ok = [first, ...types.filter((t) => t !== first)].some((type) => this.placePlant(type));
+      // One large floor plant is plenty; the rest are medium.
+      const hasLarge = this.items.some((i) => i.type === 'plantLarge');
+      const order = hasLarge ? ['plantMedium'] : [k === 0 || this.rand() < 0.5 ? types[0] : types[1], ...types];
+      const ok = [...new Set(order)].some((type) => this.placePlant(type));
       if (!ok) break;
       placed++;
     }
@@ -770,7 +811,9 @@ function livingRoom(L) {
     if (mc) {
       media = L.add('mediaUnit', mc.box, { w });
       const tvz = 0.9;
-      if (L.fitsOnWall(mc.wall, mc.t, ITEMS.tv.w, tvz, tvz + ITEMS.tv.h, media)) {
+      if (L.want('projector')) {
+        // projector screen goes here instead of a TV
+      } else if (L.fitsOnWall(mc.wall, mc.t, ITEMS.tv.w, tvz, tvz + ITEMS.tv.h, media)) {
         L.addWall('tv', mc.wall, mc.t, ITEMS.tv.w, ITEMS.tv.h, tvz, { depth: 0.06 });
         L.note('TV wall-mounted over a low media console, directly across from the sofa.');
       } else {
@@ -779,6 +822,8 @@ function livingRoom(L) {
       if (L.rand() < 0.8) L.addTop('plantSmall', media, v(media.w / 2 - 0.2, 0));
     }
   }
+
+  L.projectorSetup(sofa, 'sofa');
 
   // Coffee table + rug
   const cs = ITEMS.coffeeTable;
@@ -875,7 +920,12 @@ function bedroom(L) {
     sc += sideOk.filter(Boolean).length * 3;
     sc -= L.windowsOnWall(c.wall, c.t - bs.w / 2, c.t + bs.w / 2).length * 5; // no headboard under windows
     // command position: door visible but not straight in line with the bed
-    for (const dr of L.doors) {
+    for (const bd of L.bathDoors) {
+      // don't sleep facing the bathroom door or with it in your headboard wall
+      if (dot(frontOf(c.box), norm(sub(bd.pos, p))) > 0.6) sc -= L.opts.fengShui ? 6 : 2;
+      if (bd.wall === c.wall.i) sc -= L.opts.fengShui ? 4 : 1.5;
+    }
+    for (const dr of L.entryDoors) {
       const toDoor = norm(sub(dr.pos, p));
       const facing = dot(frontOf(c.box), toDoor);
       const fs = L.opts.fengShui ? 2.5 : 1;
@@ -935,7 +985,7 @@ function bedroom(L) {
   let dresser = null;
   if (L.want('dresser')) {
     const ds = ITEMS.dresser;
-    const closetDoor = L.doors.find((d) => d.swing === 'none');
+    const closetDoor = L.doors.find((d) => d.swing === 'none' || d.kind === 'wardrobe');
     const dc = L.choose(L.wallCandidates(ds.w, ds.d, { clear: 0.7 }), (c) => {
       const p = centerOf(c.box);
       let sc = 5 - L.doorDistance(p) * 0.4;
@@ -962,6 +1012,7 @@ function bedroom(L) {
 
   // Desk: on a wall facing into the room with daylight from the side.
   if (L.want('desk')) placeDesk(L, { avoidWall: bedC.wall.i, laptop: true, label: 'Desk' });
+  L.projectorSetup(bed, 'bed');
 
   // Reading corner
   if (L.area > 13 && L.want('readingChair')) {
@@ -1009,7 +1060,7 @@ function placeDesk(L, { avoidWall = -1, laptop = false, label = 'Desk' } = {}) {
       if (o.wall === cand.wall.i && Math.abs(o.t - cand.t) < 0.8) sc += 2;
       else sc += 3 / (1 + dist(p, o.pos));
     }
-    for (const dr of L.doors) {
+    for (const dr of L.entryDoors) {
       const behind = dot(frontOf(cand.box), norm(sub(dr.pos, p)));
       if (behind > 0.8) sc -= L.opts.fengShui ? 10 : 4;
       else if (behind > 0.3) sc -= L.opts.fengShui ? 4 : 1.5;
@@ -1046,7 +1097,7 @@ function office(L) {
     }
     sc += best;
     // don't sit with your back to the door
-    for (const dr of L.doors) {
+    for (const dr of L.entryDoors) {
       const toDoor = norm(sub(dr.pos, p));
       const behind = dot(frontOf(c.box), toDoor); // chair faces -front
       if (behind > 0.8) sc -= L.opts.fengShui ? 10 : 4;
@@ -1234,6 +1285,7 @@ function keepFurniture(L) {
     if (L.opts.fengShui || L.want('bench')) L.footBench(bed);
   }
 
+  if (bed) L.projectorSetup(bed, 'bed');
   if (rethink && L.want('frames')) L.galleryFromInventory(room.frameInventory);
 
   // Full-length mirror: a free stretch of wall at floor level, ideally near the closet/dresser.
@@ -1253,7 +1305,7 @@ function keepFurniture(L) {
       }
     }
   }
-  const closet = L.doors.find((d) => d.swing === 'none');
+  const closet = L.doors.find((d) => d.swing === 'none' || d.kind === 'wardrobe');
   const mpick = L.choose(mirrorCands, (c) => {
     const p = centerOf(c.b);
     let sc = 3 + c.mw * 4;
@@ -1267,7 +1319,7 @@ function keepFurniture(L) {
     L.addWall('floorMirror', mpick.wall, mpick.t, mpick.mw, tall, 0.05, { depth: 0.05, name: `Full-length mirror ${Math.round(mpick.mw / 0.0254)}×${Math.round(tall / 0.0254)}"` });
     const nearCloset = closet && dist(centerOf(mpick.b), closet.pos) < 1.2;
     L.note(`${Math.round(mpick.mw / 0.0254)}" × ${Math.round(tall / 0.0254)}" full-length mirror wall-mounted on the ${L.wallLabel(mpick.wall)}${nearCloset ? ', right next to the closet for getting dressed' : ''} — mounted flat so it doesn't eat floor space.`);
-  } else if (L.want('mirrors') && L.doors.some((d) => d.swing !== 'none')) {
+  } else if (L.want('mirrors') && L.entryDoors.some((d) => d.swing !== 'none')) {
     L.note('No free wall at floor level for a full-length mirror — an over-the-door mirror on the room door is the space-free option.');
   }
 

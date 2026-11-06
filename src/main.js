@@ -631,8 +631,23 @@ function scaleRoom(k) {
 }
 
 let openingSeq = 1;
+// Door kinds the user can pick for a door opening.
+const DOOR_KINDS = {
+  entry: { label: 'Room door', apply: (o) => { delete o.kind; delete o.swing; delete o.label; } },
+  bathroom: { label: 'Bathroom door', apply: (o) => { o.kind = 'bathroom'; delete o.swing; o.label = 'Bathroom'; } },
+  wardrobe: { label: 'Wardrobe doors (sliding)', apply: (o) => { o.kind = 'wardrobe'; o.swing = 'slide'; o.label = 'Wardrobe'; } },
+  doorway: { label: 'Open doorway', apply: (o) => { delete o.kind; o.swing = 'none'; delete o.label; } },
+  closet: { label: 'Open closet', apply: (o) => { delete o.kind; o.swing = 'none'; o.label = 'Closet'; } },
+};
+function doorKindOf(o) {
+  if (o.kind === 'bathroom') return 'bathroom';
+  if (o.kind === 'wardrobe' || o.swing === 'slide') return 'wardrobe';
+  if (o.swing === 'none') return /closet/i.test(o.label || '') ? 'closet' : 'doorway';
+  return 'entry';
+}
+
 function addOpening(kind, wall, t) {
-  const width = kind === 'window' ? Math.min(1.2, wall.length - 0.2) : Math.min(0.82, wall.length - 0.1);
+  const width = kind === 'window' ? Math.min(1.2, wall.length - 0.2) : kind === 'wardrobe' ? Math.min(1.6, wall.length - 0.1) : Math.min(0.82, wall.length - 0.1);
   const o = {
     id: `o${Date.now().toString(36)}${openingSeq++}`,
     type: kind === 'window' ? 'window' : 'door',
@@ -641,6 +656,8 @@ function addOpening(kind, wall, t) {
     hinge: 'left',
   };
   if (kind === 'opening') o.swing = 'none';
+  if (kind === 'bathroom') DOOR_KINDS.bathroom.apply(o);
+  if (kind === 'wardrobe') DOOR_KINDS.wardrobe.apply(o);
   if (o.type === 'window') { o.sill = 0.9; o.height = 1.2; }
   state.room.openings.push(o);
   state.selOpening = o.id;
@@ -677,7 +694,7 @@ function updateHint() {
   } else if (state.step === 1) {
     h.textContent = 'Drag corners or the dots on walls. Double-tap a wall to add a corner. Type exact wall lengths in the panel.';
   } else if (state.step === 2) {
-    h.textContent = state.tool ? `Tap a wall to place the ${state.tool === 'opening' ? 'doorway' : state.tool}.` : 'Choose Door, Doorway or Window, then tap a wall. Drag to slide.';
+    h.textContent = state.tool ? `Tap a wall to place the ${({ opening: 'doorway', bathroom: 'bathroom door', wardrobe: 'wardrobe doors' })[state.tool] || state.tool}.` : 'Choose Door, Doorway or Window, then tap a wall. Drag to slide.';
   } else {
     h.textContent = state.designs.length ? '' : 'Choose a room type and style, then press “Design my room”.';
   }
@@ -710,7 +727,7 @@ function renderWalls(valuesOnly = false) {
     const inp = li.querySelector('input');
     if (document.activeElement !== inp) inp.value = fmtLen(w.length);
     const ops = state.room.openings.filter((o) => o.wall === w.i);
-    li.querySelector('.grow').textContent = ops.map((o) => (o.type === 'window' ? 'window' : o.swing === 'none' ? 'doorway' : 'door')).join(', ');
+    li.querySelector('.grow').textContent = ops.map((o) => (o.type === 'window' ? 'window' : DOOR_KINDS[doorKindOf(o)].label.toLowerCase())).join(', ');
   });
   $('#areaInfo').textContent = `Floor area ${state.units === 'metric' ? `${area(state.room.points).toFixed(1)} m²` : `${(area(state.room.points) / 0.092903).toFixed(0)} sq ft`}`;
   $('#shapeWarn').hidden = !selfIntersects(state.room.points);
@@ -737,14 +754,14 @@ function renderOpenings(valuesOnly = false) {
     const li = document.createElement('li');
     li.dataset.id = o.id;
     li.classList.toggle('sel', state.selOpening === o.id);
-    const kind = o.type === 'window' ? 'Window' : o.swing === 'none' ? 'Doorway' : 'Door';
+    const kind = o.type === 'window' ? 'Window' : DOOR_KINDS[doorKindOf(o)].label;
     li.innerHTML = `<span class="title">${kind} · wall ${o.wall + 1}</span>
       <button class="btn ghost small" data-act="del" title="Delete">✕</button>
       <label>Width <input data-f="width" type="text" value="${fmtLen(o.width)}" /></label>
       <label>From corner <input data-f="t" type="text" value="${fmtLen(o.t - o.width / 2)}" /></label>
       ${o.type === 'window' ? `<label>Sill <input data-f="sill" type="text" value="${fmtLen(o.sill ?? 0.9)}" /></label><label>Height <input data-f="height" type="text" value="${fmtLen(o.height ?? 1.2)}" /></label>` : ''}
-      ${o.type === 'door' && o.swing !== 'none' ? '<button class="btn ghost small" data-act="flip">⇄ Flip hinge</button>' : ''}
-      ${o.swing === 'none' ? `<label><input type="checkbox" data-act="closet" ${/closet/i.test(o.label || '') ? 'checked' : ''} /> It's a closet</label>` : ''}`;
+      ${o.type === 'door' ? `<label>Type <select data-act="kind">${Object.entries(DOOR_KINDS).map(([k, d]) => `<option value="${k}" ${doorKindOf(o) === k ? 'selected' : ''}>${d.label}</option>`).join('')}</select></label>` : ''}
+      ${o.type === 'door' && o.swing !== 'none' && o.swing !== 'slide' ? '<button class="btn ghost small" data-act="flip">⇄ Flip hinge</button>' : ''}`;
     li.addEventListener('click', (e) => {
       if (e.target.matches('input')) return;
       state.selOpening = o.id;
@@ -753,7 +770,11 @@ function renderOpenings(valuesOnly = false) {
     });
     li.querySelector('[data-act="del"]').addEventListener('click', () => removeOpening(o.id));
     li.querySelector('[data-act="flip"]')?.addEventListener('click', () => { o.hinge = o.hinge === 'right' ? 'left' : 'right'; render(); save(); });
-    li.querySelector('[data-act="closet"]')?.addEventListener('change', (e) => { if (e.target.checked) o.label = 'Closet'; else delete o.label; state.designs = []; save(); });
+    li.querySelector('[data-act="kind"]')?.addEventListener('change', (e) => {
+      DOOR_KINDS[e.target.value].apply(o);
+      state.designs = [];
+      renderOpenings(); render(); save();
+    });
     li.querySelectorAll('input').forEach((inp) => inp.addEventListener('change', () => {
       const val = parseLen(inp.value);
       if (!Number.isFinite(val)) return;
@@ -846,7 +867,7 @@ function renderIncludeChips() {
   const on = new Set(currentInclude());
   const box = $('#includeChips');
   box.innerHTML = '';
-  const closet = state.room.hasCloset || (state.room.openings || []).some((o) => o.swing === 'none' && /closet|wardrobe/i.test(o.label || ''));
+  const closet = state.room.hasCloset || (state.room.openings || []).some((o) => o.kind === 'wardrobe' || (o.swing === 'none' && /closet|wardrobe/i.test(o.label || '')));
   for (const o of INCLUDE_OPTIONS.filter((x) => x.rooms.includes(k))) {
     const b = document.createElement('button');
     b.classList.toggle('active', on.has(o.key));

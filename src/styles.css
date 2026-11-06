@@ -203,3 +203,5 @@ summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 .chips.include button { padding: 5px 10px; font-size: 12.5px; }
 .chips.include button.active::before { content: "✓ "; }
 .chips.include button .inc-hint { opacity: 0.7; font-size: 11px; }
+
+.opening-list select { padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12px; }

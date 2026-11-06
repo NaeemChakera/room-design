@@ -456,6 +456,18 @@ function buildWallItem(wi, S, lights) {
       g.add(box(wi.width, wi.height, 0.01, mat('#2f5d3a'), 0, 0, 0.005));
       break;
     }
+    case 'screen': {
+      g.add(box(wi.width + 0.12, 0.08, 0.08, mat('#2b2b2b'), 0, wi.height + 0.02, 0.05)); // roller case
+      const scr = new THREE.Mesh(new THREE.PlaneGeometry(wi.width, wi.height), new THREE.MeshStandardMaterial({ color: '#f4f4f2', emissive: '#b9c2ea', emissiveIntensity: 0.25, roughness: 0.95 }));
+      scr.position.set(0, wi.height / 2, 0.05);
+      g.add(scr);
+      const border = mat('#1d1d1d');
+      g.add(box(wi.width, 0.03, 0.005, border, 0, 0, 0.052));
+      g.add(box(0.03, wi.height, 0.005, border, -wi.width / 2, 0, 0.052));
+      g.add(box(0.03, wi.height, 0.005, border, wi.width / 2, 0, 0.052));
+      g.add(box(wi.width * 0.98, 0.02, 0.02, mat('#2b2b2b'), 0, -0.01, 0.05)); // weighted bar
+      break;
+    }
     case 'sconce': {
       g.add(box(0.08, 0.12, 0.03, mat(S.metal, { metalness: 0.6 }), 0, 0.05, 0.015));
       const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 16, 1, true), lampShade('#fff1d0'));
@@ -626,11 +638,27 @@ export class View3D {
         this.root.add(g);
         group.meshes.push(g);
       }
-      for (const o of mine.filter((x) => x.type === 'door' && x.swing !== 'none')) {
+      // sliding wardrobe doors: two closed panels (one mirrored), staggered in the wall
+      for (const o of mine.filter((x) => x.type === 'door' && x.swing === 'slide')) {
+        const c = add(w.a, mul(w.dir, o.t));
+        const g = new THREE.Group();
+        const oh = openingZ(o)[1];
+        const pw = o.width / 2 + 0.03;
+        const wood = mat(S.wood);
+        const glass = new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 });
+        g.add(box(pw, oh - 0.02, 0.03, wood, -o.width / 4, 0, -WALL_T * 0.35));
+        g.add(box(pw, oh - 0.02, 0.03, glass, o.width / 4, 0, -WALL_T * 0.7));
+        g.add(box(o.width + 0.08, 0.05, WALL_T, mat('#f5f3ee'), 0, oh, -WALL_T / 2));
+        g.position.set(c.x, 0, c.y);
+        g.rotation.y = -theta;
+        this.root.add(g);
+        group.meshes.push(g);
+      }
+      for (const o of mine.filter((x) => x.type === 'door' && x.swing !== 'none' && x.swing !== 'slide')) {
         const hingeT = o.hinge === 'right' ? o.t + o.width / 2 : o.t - o.width / 2;
         const hp = add(w.a, mul(w.dir, hingeT));
         const leaf = new THREE.Group();
-        const panel = box(o.width - 0.02, 2.05, 0.04, mat('#f2efe9'), (o.hinge === 'right' ? -1 : 1) * (o.width / 2), 0, 0);
+        const panel = box(o.width - 0.02, 2.05, 0.04, mat(o.kind === 'bathroom' ? '#e6eef1' : '#f2efe9'), (o.hinge === 'right' ? -1 : 1) * (o.width / 2), 0, 0);
         leaf.add(panel);
         leaf.position.set(hp.x, 0, hp.y);
         leaf.rotation.y = -theta + (o.hinge === 'right' ? 1 : -1) * 0.6;

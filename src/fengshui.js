@@ -27,7 +27,7 @@ export const BAGUA = [
 
 export function mainDoor(room) {
   const ds = (room.openings || []).filter((o) => o.type === 'door');
-  return ds.find((d) => d.swing !== 'none') || ds[0] || null;
+  return ds.find((d) => (!d.kind || d.kind === 'entry') && d.swing !== 'none' && d.swing !== 'slide') || ds.find((d) => d.swing !== 'none') || ds[0] || null;
 }
 
 /** Bagua frame: origin at door wall, u = left→right as you enter, w = into the room. */
@@ -127,6 +127,16 @@ export function fengShuiReport(room, design) {
     else if (facing > 0.1) add_('bad', 'Feet point at the door ("coffin position")', 'The foot of the bed lines up with the doorway — the placement feng shui most wants to avoid.', fix);
     else add_('warn', 'Door is behind or beside you in bed', 'You can\'t see the door from bed, which feng shui links to restless sleep.', 'Hang a mirror that lets you see the door from bed — but not one that reflects the bed itself.');
     void doorWallN;
+    // bathroom door
+    const bath = (room.openings || []).find((o) => o.type === 'door' && o.kind === 'bathroom');
+    if (bath) {
+      const bp = doorPos(room, bath);
+      const sees = dot(front(bed), norm(sub(bp, C(bed)))) > 0.6;
+      const back = add(C(bed), mul(front(bed), -bed.d / 2 - 0.05));
+      const sameWall = Math.abs(dot(sub(back, ws[bath.wall].a), ws[bath.wall].n)) < 0.2;
+      if (sees || sameWall) add_('warn', sees ? 'Bed faces the bathroom door' : 'Headboard shares the bathroom wall', 'Feng shui keeps the bed away from the bathroom\'s draining energy (and it\'s noisier in practice).', 'Keep the bathroom door closed at night; a plant or a curtain near the bathroom door helps.');
+      else add_('good', 'Bed is clear of the bathroom', 'The bed doesn\'t face or share a wall with the bathroom door.');
+    }
     // headboard wall
     const back = add(C(bed), mul(front(bed), -bed.d / 2 - 0.05));
     const underWindow = (room.openings || []).some((o) => {
@@ -167,7 +177,7 @@ export function fengShuiReport(room, design) {
     });
     if (overBed.length) add_('warn', 'Something heavy hangs near the bed', `${overBed.map((h) => h.name).join(', ')} hangs over or right next to where you sleep.`, 'Keep anything above or beside the bed light; anchor heavy pieces into studs.');
     // electronics
-    const tech = items.filter((i) => i.type === 'desk' || i.type === 'mediaUnit').length + wallItems.filter((w) => w.type === 'tv' || w.type === 'projection').length + (design?.topItems || []).filter((t) => t.type === 'pcTower' || t.type === 'monitor' || t.type === 'projector').length;
+    const tech = items.filter((i) => i.type === 'desk' || i.type === 'mediaUnit').length + wallItems.filter((w) => w.type === 'tv' || w.type === 'projection' || w.type === 'screen').length + (design?.topItems || []).filter((t) => t.type === 'pcTower' || t.type === 'monitor' || t.type === 'projector').length;
     if (tech) add_('warn', 'Work and screens share the bedroom', 'Desk, screens or a projector bring "active" energy into a room meant for rest.', 'Drape a throw over the monitor at night, power down at the wall, and keep the desk cleared before bed.');
     add_('tip', 'Under the bed', 'Feng shui wants the space under the bed clear so energy can circulate.', 'If you store things there, keep it to soft items like bedding, in closed bins.');
   }

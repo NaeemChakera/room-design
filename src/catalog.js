@@ -45,6 +45,7 @@ export const ITEMS = {
   laptop:      { name: 'Laptop', top: true },
   monitor:     { name: 'Monitor', top: true },
   projector:   { name: 'Ceiling projector', ceiling: true },
+  screen:      { name: 'Projector screen', wall: true },
   sconce:      { name: 'Wall sconce', wall: true, light: true },
   plantHanging:{ name: 'Hanging plant', ceiling: true },
 };
@@ -186,6 +187,7 @@ export const INCLUDE_OPTIONS = [
   { key: 'wardrobe', label: 'Wardrobe', hint: 'only if there is no closet', rooms: ['bedroom'], on: ['bedroom'] },
   { key: 'nightstands', label: 'Bedside cabinets', rooms: ['bedroom'], on: ['bedroom'] },
   { key: 'tv', label: 'TV & media console', rooms: ['living'], on: ['living'] },
+  { key: 'projector', label: 'Projector & screen', rooms: ['bedroom', 'living', 'keep'], on: [] },
   { key: 'frames', label: 'Frames & art', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'plants', label: 'Plants', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'lighting', label: 'Lamps & lighting', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
