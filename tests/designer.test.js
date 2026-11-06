@@ -48,17 +48,19 @@ test('naeem keep-furniture', () => {
   console.log(d.notes.join('\n'));
 });
 
-test('carpet: no rug in bedroom, flat-weave in living room', () => {
-  const base = rooms.rect;
-  const carpet = { ...base, floor: { type: 'carpet', color: '#b9ad9a' } };
-  const bed = generateDesigns(carpet, { roomType: 'bedroom', style: 'boho', iterations: 10 })[0];
-  assert.ok(!bed.items.some((i) => i.type === 'rug'));
-  assert.ok(bed.notes.some((n) => n.startsWith('Carpeted floor')));
-  const liv = generateDesigns(carpet, { roomType: 'living', style: 'boho', iterations: 10 })[0];
-  const rug = liv.items.find((i) => i.type === 'rug');
-  assert.ok(!rug || (rug.w <= 2.0 && rug.d <= 1.4));
+test('carpet: ticked rug still appears, as a smaller flat-weave', () => {
+  const carpet = { ...rooms.rect, floor: { type: 'carpet', color: '#b9ad9a' } };
+  for (const roomType of ['bedroom', 'living', 'dining']) {
+    const d = generateDesigns(carpet, { roomType, style: 'boho', iterations: 15 })[0];
+    const rug = d.items.find((i) => i.type === 'rug');
+    assert.ok(rug, `${roomType}: rug on carpet when ticked`);
+    assert.ok(rug.w <= 2.0 && rug.d <= 1.5, `${roomType}: flat-weave size`);
+    assert.ok(d.notes.some((n) => n.includes('flat-weave')));
+  }
   const naeem = generateDesigns(naeemBedroom(), { roomType: 'bedroom', style: 'scandinavian', keep: true, iterations: 10 })[0];
-  assert.ok(!naeem.items.some((i) => i.type === 'rug'));
+  assert.ok(naeem.items.some((i) => i.type === 'rug'), 'example room on carpet gets its rug');
+  const off = generateDesigns(carpet, { roomType: 'bedroom', style: 'boho', iterations: 10, include: ['nightstands'] })[0];
+  assert.ok(!off.items.some((i) => i.type === 'rug'), 'no rug when unticked');
 });
 
 test('naeem: re-planned frames spread out with breathing room', () => {

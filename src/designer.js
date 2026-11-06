@@ -562,17 +562,13 @@ class Layout {
     return lamp;
   }
 
-  placeRug(cx, cy, w, d, theta, label, { onCarpet = 'skip' } = {}) {
+  placeRug(cx, cy, w, d, theta, label) {
     if (!this.want('rug')) return null;
     const floor = this.room.floor?.type;
     if (floor === 'carpet') {
-      if (onCarpet === 'skip') {
-        if (!this.notes.some((n) => n.startsWith('Carpeted floor'))) this.note('Carpeted floor, so no big rug: it would bunch up and add little. Texture comes from throws, cushions and plants instead.');
-        return null;
-      }
-      // Living rooms: a low-pile flat-weave rug still marks out the seating area.
-      w = Math.min(w, 2.0); d = Math.min(d, 1.4);
-      label = `${label} (low-pile flat-weave so it lies flat on the carpet)`;
+      // Layering on carpet: a smaller low-pile flat-weave rug lies flat and doesn't bunch up.
+      w = Math.min(w, 2.0); d = Math.min(d, 1.5);
+      label = `${label} (low-pile flat-weave so it lies flat on the carpet — add a rug-to-carpet gripper)`;
     }
     if (floor === 'tile' || floor === 'concrete') label += ', warming up the hard floor';
     // Shrink the rug until it fits, keeping ~25 cm of floor visible to walls.
@@ -802,7 +798,7 @@ function livingRoom(L) {
   const rugW = sofa.w + 0.4;
   const rugD = Math.min(2.4, Math.max(1.4, D - 0.6));
   const rc = add(centerOf(sofa), mul(f, sofa.d / 2 - 0.25 + rugD / 2));
-  L.placeRug(rc.x, rc.y, rugW, rugD, sofa.theta, 'anchors the seating, front legs of the sofa on it', { onCarpet: 'layer' });
+  L.placeRug(rc.x, rc.y, rugW, rugD, sofa.theta, 'anchors the seating, front legs of the sofa on it');
 
   // Side table on one end, lamp on the other end
   const sides = L.rand() < 0.5 ? [1, -1] : [-1, 1];
@@ -1099,6 +1095,9 @@ function office(L) {
   const cp = add(centerOf(desk), mul(frontOf(desk), desk.d / 2 + 0.15));
   const chairBox = { x: cp.x, y: cp.y, w: 0.6, d: 0.6, theta: desk.theta + Math.PI };
   if (L.canPlace(chairBox, { ignore: [desk.id] })) L.add('deskChair', chairBox, { parent: desk.id });
+  // Rug under the desk and chair (big enough that the chair stays on it when pushed back).
+  const rugC = add(centerOf(desk), mul(frontOf(desk), 0.45));
+  L.placeRug(rugC.x, rugC.y, desk.w + 0.8, 1.8, desk.theta, 'under the desk and chair, so the chair rolls back without leaving it');
   L.addTop('laptop', desk, v(desk.w / 2 - 0.35, 0.02));
   L.addTop('deskLamp', desk, v(-desk.w / 2 + 0.2, -0.1));
   L.addTop('plantSmall', desk, v(desk.w / 2 - 0.15, -0.15));

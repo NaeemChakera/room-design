@@ -189,7 +189,7 @@ export const INCLUDE_OPTIONS = [
   { key: 'frames', label: 'Frames & art', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'plants', label: 'Plants', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'lighting', label: 'Lamps & lighting', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
-  { key: 'rug', label: 'Rug', rooms: ['bedroom', 'living', 'dining', 'keep'], on: ['bedroom', 'living', 'dining', 'keep'] },
+  { key: 'rug', label: 'Rug', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'shelves', label: 'Shelves', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
   { key: 'mirrors', label: 'Mirrors', rooms: ['bedroom', 'dining', 'keep'], on: ['bedroom', 'dining', 'keep'] },
   { key: 'readingChair', label: 'Reading chair', rooms: ['bedroom', 'living', 'office'], on: ['bedroom', 'living', 'office'] },
