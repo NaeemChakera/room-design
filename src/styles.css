@@ -199,3 +199,7 @@ summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 
 .fs-checks li.warn, .fs-checks li.bad { color: inherit; font-weight: normal; }
 .fs-checks li b { font-weight: 700; }
+
+.chips.include button { padding: 5px 10px; font-size: 12.5px; }
+.chips.include button.active::before { content: "✓ "; }
+.chips.include button .inc-hint { opacity: 0.7; font-size: 11px; }

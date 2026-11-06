@@ -82,3 +82,17 @@ test('feng shui mode avoids coffin position for a fresh bedroom', () => {
     assert.ok(!bad.includes('Feet point at the door ("coffin position")'));
   }
 });
+
+test('include picker: closet means no wardrobe; bedroom gets dresser + desk with laptop', () => {
+  const room = { ...rooms.rect, openings: [...rooms.rect.openings, { type: 'door', swing: 'none', label: 'Closet', wall: 1, t: 0.6, width: 0.8 }] };
+  const d = generateDesigns(room, { roomType: 'bedroom', style: 'scandinavian', iterations: 20 })[0];
+  const types = d.items.map((i) => i.type);
+  assert.ok(!types.includes('wardrobe'), 'no wardrobe with a closet');
+  assert.ok(types.includes('dresser') && types.includes('desk'), 'dresser and desk');
+  assert.ok(d.topItems.some((t) => t.type === 'laptop'), 'laptop on desk');
+  const none = generateDesigns(room, { roomType: 'bedroom', style: 'scandinavian', iterations: 10, include: ['nightstands'] })[0];
+  assert.ok(!none.items.some((i) => ['desk', 'dresser', 'rug'].includes(i.type) || i.type.startsWith('plant')), 'only chosen items');
+  assert.ok(!none.wallItems.some((w) => w.type === 'frame' || w.type === 'shelf'), 'no frames/shelves when unchecked');
+  const noCloset = generateDesigns(rooms.rect, { roomType: 'bedroom', style: 'scandinavian', iterations: 20 })[0];
+  console.log('no closet:', noCloset.items.map((i) => i.type).join(','));
+});

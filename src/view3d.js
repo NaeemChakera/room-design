@@ -163,7 +163,7 @@ function buildItem(it, S, lights) {
       if (it.type === 'nightstand') g.add(box(w, top - 0.12, d, woodDark, 0, 0.12, 0));
       if (round) g.add(cyl(0.04, 0.12, top, metal, 0, 0, 0, 12));
       else legs(g, w, d, top, it.type === 'desk' ? metal : woodDark, 0.05, 0.018);
-      if (it.type === 'desk') {
+      if (it.type === 'desk' && it.monitor !== false) {
         g.add(box(0.56, 0.32, 0.03, mat('#1d2024'), 0, top + 0.16, back + 0.1));
         g.add(box(0.06, 0.16, 0.06, metal, 0, top + 0.04, back + 0.1));
         g.add(box(0.4, 0.015, 0.13, mat('#d9d9d9'), 0, top + 0.04, 0.08));
@@ -308,6 +308,20 @@ function buildTop(it, S, lights) {
       const fan2 = fan.clone(); fan2.position.y = 0.14; g.add(fan2);
       break;
     }
+    case 'laptop': {
+      const alu = mat('#a7abb0', { metalness: 0.6, roughness: 0.35 });
+      g.add(box(0.33, 0.015, 0.23, alu, 0, 0, 0));
+      g.add(box(0.27, 0.002, 0.1, mat('#2a2c30'), 0, 0.015, 0.02)); // keyboard
+      const lid = new THREE.Group();
+      const scr = box(0.33, 0.22, 0.01, alu, 0, 0, 0);
+      const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.19), new THREE.MeshStandardMaterial({ color: '#25344a', emissive: '#3c5a86', emissiveIntensity: 0.5 }));
+      disp.position.set(0, 0.11, 0.006);
+      lid.add(scr, disp);
+      lid.position.set(0, 0.015, -0.115);
+      lid.rotation.x = -0.25;
+      g.add(lid);
+      break;
+    }
     case 'monitor': {
       g.add(box(0.2, 0.02, 0.18, mat('#1d1f22')));
       g.add(box(0.04, 0.2, 0.03, mat('#1d1f22'), 0, 0.02, -0.04));
@@ -379,7 +393,7 @@ function buildWallItem(wi, S, lights) {
       break;
     }
     case 'mirror': {
-      const glass = new THREE.MeshStandardMaterial({ color: '#cfe0e6', metalness: 0.9, roughness: 0.08 });
+      const glass = new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 });
       if (wi.round) {
         const r = Math.min(wi.width, wi.height) / 2;
         const ring = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.03, 40), mat(S.metal, { metalness: 0.7, roughness: 0.3 }));
@@ -433,7 +447,7 @@ function buildWallItem(wi, S, lights) {
     }
     case 'floorMirror': {
       g.add(box(wi.width, wi.height, 0.03, mat('#f3f3f3'), 0, 0, 0.04));
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - 0.05, wi.height - 0.05), new THREE.MeshStandardMaterial({ color: '#cfe0e6', metalness: 0.9, roughness: 0.08 }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - 0.05, wi.height - 0.05), new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 }));
       m.position.set(0, wi.height / 2, 0.056); g.add(m);
       g.rotation.x = -0.08;
       break;
@@ -669,6 +683,8 @@ export class View3D {
         g.position.set(p.x, wi.z, p.y);
         g.rotation.y = -Math.atan2(w.dir.y, w.dir.x);
         this.root.add(g);
+        // hide wall decor together with its wall when that wall is cut away
+        this.wallMeshes[wi.wall]?.meshes.push(g);
       }
     }
     this.root.updateMatrixWorld(true);

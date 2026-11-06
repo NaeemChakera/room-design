@@ -2,10 +2,10 @@ import {
   v, add, sub, mul, dot, dist, norm, walls as wallsOf, orientInward, closestPointOnSegment,
   area, selfIntersects, boxCorners, pointInPolygon, clamp,
 } from './geometry.js';
-import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces } from './catalog.js';
+import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces, INCLUDE_OPTIONS, defaultInclude } from './catalog.js';
 import { generateDesigns } from './designer.js';
 import { drawDesign, drawWalls, drawDimensions, drawFloor, makeView } from './render2d.js';
-import { PRESETS, rectRoom } from './presets.js';
+import { PRESETS, rectRoom, DEFAULT_PRESET } from './presets.js';
 import { shoppingList, totals, STORES, LOCAL_LINKS, FLEA_TIPS } from './shopping.js';
 import { baguaFrame, baguaCells } from './fengshui.js';
 
@@ -60,6 +60,7 @@ const state = {
   rethink: false,
   showBagua: true,
   have: [],
+  include: {},
   buyFilter: 'all',
   designs: [],
   designIdx: 0,
@@ -71,8 +72,8 @@ const state = {
 
 function save() {
   try {
-    const { room, closed, roomType, style, units, keep, step, fengShui, rethink, showBagua, have } = state;
-    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, fengShui, rethink, showBagua, have, step: Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
+    const { room, closed, roomType, style, units, keep, step, fengShui, rethink, showBagua, have, include, presetKey } = state;
+    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, fengShui, rethink, showBagua, have, include, presetKey, step: Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
   } catch { /* storage unavailable */ }
 }
 
@@ -742,7 +743,8 @@ function renderOpenings(valuesOnly = false) {
       <label>Width <input data-f="width" type="text" value="${fmtLen(o.width)}" /></label>
       <label>From corner <input data-f="t" type="text" value="${fmtLen(o.t - o.width / 2)}" /></label>
       ${o.type === 'window' ? `<label>Sill <input data-f="sill" type="text" value="${fmtLen(o.sill ?? 0.9)}" /></label><label>Height <input data-f="height" type="text" value="${fmtLen(o.height ?? 1.2)}" /></label>` : ''}
-      ${o.type === 'door' && o.swing !== 'none' ? '<button class="btn ghost small" data-act="flip">⇄ Flip hinge</button>' : ''}`;
+      ${o.type === 'door' && o.swing !== 'none' ? '<button class="btn ghost small" data-act="flip">⇄ Flip hinge</button>' : ''}
+      ${o.swing === 'none' ? `<label><input type="checkbox" data-act="closet" ${/closet/i.test(o.label || '') ? 'checked' : ''} /> It's a closet</label>` : ''}`;
     li.addEventListener('click', (e) => {
       if (e.target.matches('input')) return;
       state.selOpening = o.id;
@@ -751,6 +753,7 @@ function renderOpenings(valuesOnly = false) {
     });
     li.querySelector('[data-act="del"]').addEventListener('click', () => removeOpening(o.id));
     li.querySelector('[data-act="flip"]')?.addEventListener('click', () => { o.hinge = o.hinge === 'right' ? 'left' : 'right'; render(); save(); });
+    li.querySelector('[data-act="closet"]')?.addEventListener('change', (e) => { if (e.target.checked) o.label = 'Closet'; else delete o.label; state.designs = []; save(); });
     li.querySelectorAll('input').forEach((inp) => inp.addEventListener('change', () => {
       const val = parseLen(inp.value);
       if (!Number.isFinite(val)) return;
@@ -805,7 +808,7 @@ function renderDesignControls() {
     const b = document.createElement('button');
     b.textContent = r.name;
     b.classList.toggle('active', state.roomType === k);
-    b.addEventListener('click', () => { state.roomType = k; renderDesignControls(); save(); });
+    b.addEventListener('click', () => { state.roomType = k; renderDesignControls(); save(); if (state.designs.length) runDesign(false); });
     rt.appendChild(b);
   }
   $('#keepWrap').hidden = !state.room.fixed;
@@ -813,6 +816,7 @@ function renderDesignControls() {
   $('#rethinkWrap').hidden = !(state.room.frameInventory && state.keep);
   $('#rethinkToggle').checked = state.rethink;
   $('#fsToggle').checked = state.fengShui;
+  renderIncludeChips();
   const st = $('#styles');
   st.innerHTML = '';
   for (const [k, s] of Object.entries(STYLES)) {
@@ -831,13 +835,41 @@ function renderDesignControls() {
   $('#inspo').innerHTML = INSPIRATION.map((t) => `<li>${t}</li>`).join('');
 }
 
+function includeKey() { return state.keep && state.room.fixed ? 'keep' : state.roomType; }
+function currentInclude() {
+  const k = includeKey();
+  return state.include[k] || defaultInclude(k);
+}
+
+function renderIncludeChips() {
+  const k = includeKey();
+  const on = new Set(currentInclude());
+  const box = $('#includeChips');
+  box.innerHTML = '';
+  const closet = state.room.hasCloset || (state.room.openings || []).some((o) => o.swing === 'none' && /closet|wardrobe/i.test(o.label || ''));
+  for (const o of INCLUDE_OPTIONS.filter((x) => x.rooms.includes(k))) {
+    const b = document.createElement('button');
+    b.classList.toggle('active', on.has(o.key));
+    b.innerHTML = esc(o.label) + (o.key === 'wardrobe' && closet ? ' <span class="inc-hint">(skipped: you have a closet)</span>' : o.hint ? ` <span class="inc-hint">(${esc(o.hint)})</span>` : '');
+    b.addEventListener('click', () => {
+      const next = new Set(currentInclude());
+      if (next.has(o.key)) next.delete(o.key); else next.add(o.key);
+      state.include = { ...state.include, [k]: [...next] };
+      save();
+      renderIncludeChips();
+      if (state.designs.length) runDesign(false);
+    });
+    box.appendChild(b);
+  }
+}
+
 function runDesign(newSeed = true) {
   if (newSeed && state.designs.length) state.seed++;
   const keep = state.keep && !!state.room.fixed;
   const btn = $('#generate');
   btn.disabled = true; btn.textContent = 'Designing…';
   setTimeout(() => {
-    state.designs = generateDesigns(state.room, { roomType: state.roomType, style: state.style, seed: state.seed, iterations: 70, keep, fengShui: state.fengShui, rethinkGallery: keep && state.rethink });
+    state.designs = generateDesigns(state.room, { roomType: state.roomType, style: state.style, seed: state.seed, iterations: 70, keep, fengShui: state.fengShui, rethinkGallery: keep && state.rethink, include: currentInclude() });
     state.designIdx = 0;
     btn.disabled = false; btn.textContent = '🔄 Try more layouts';
     renderResults();
@@ -1069,10 +1101,18 @@ $('#units').addEventListener('change', (e) => {
 $('#ceiling').addEventListener('change', (e) => { const h = parseLen(e.target.value); if (h > 1.8 && h < 6) { state.room.height = h; save(); } renderWalls(); });
 
 const presetSel = $('#presetSelect');
-for (const [k, p] of Object.entries(PRESETS)) presetSel.add(new Option(p.label, k));
+{
+  const groups = new Map();
+  for (const [k, p] of Object.entries(PRESETS)) {
+    if (!groups.has(p.group)) { const g = document.createElement('optgroup'); g.label = p.group; groups.set(p.group, g); presetSel.appendChild(g); }
+    groups.get(p.group).appendChild(new Option(p.label, k));
+  }
+}
+presetSel.addEventListener('change', () => $('#loadPreset').click());
 $('#loadPreset').addEventListener('click', () => {
   const p = PRESETS[presetSel.value];
-  loadRoom(p.make(), { roomType: p.roomType || state.roomType, keep: !!p.keep });
+  loadRoom(p.make(), { roomType: p.roomType || state.roomType, keep: !!p.keep, presetKey: presetSel.value });
+  renderDesignControls();
 });
 $('#drawNew').addEventListener('click', () => {
   state.closed = false;
@@ -1130,15 +1170,16 @@ $('#importJson').addEventListener('change', async (e) => {
 // Boot
 
 if (!load()) {
-  // First visit: open on the user's own room if a preset exists, otherwise blank.
-  const p = PRESETS.naeem;
+  // First visit: start on a common room size.
+  const p = PRESETS[DEFAULT_PRESET];
   state.room = p.make();
   state.closed = true;
-  state.roomType = 'bedroom';
-  state.keep = true;
+  state.roomType = p.roomType;
+  state.keep = false;
+  state.presetKey = DEFAULT_PRESET;
 }
 $('#units').value = state.units;
-presetSel.value = state.room.fixed ? 'naeem' : 'rect';
+presetSel.value = PRESETS[state.presetKey] ? state.presetKey : state.room.fixed ? 'example' : DEFAULT_PRESET;
 requestAnimationFrame(() => {
   resizeCanvas();
   fitView();

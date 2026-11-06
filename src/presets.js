@@ -54,7 +54,7 @@ export function naeemBedroom() {
   ];
   const art = ['#b5482f', '#d9893d', '#2f2f2c', '#c9b38f', '#6e8b5f'];
   return {
-    name: "Naeem's bedroom (hand-span estimate)",
+    name: "Example furnished bedroom (hand-span estimate)",
     measuredNote: '1 hand span ≈ 9" (not yet checked against a ruler). Rescale after tape-measuring the desk and projector walls.',
     points: [P(0, 0), P(144, 0), P(144, 162), P(70, 162), P(70, 144), P(0, 144)],
     height: 96 * IN,
@@ -74,7 +74,7 @@ export function naeemBedroom() {
       'Before rebuilding: patch the old bike-rack holes and use matte white paint for a cleaner projection surface.',
     ],
     fixed: [
-      deskWallItem('dresser', 24, 48, 24, 24, { name: 'Dresser 48" (low, 24" tall)' }),
+      deskWallItem('dresser', 24, 48, 24, 40, { name: 'Dresser 48"' }),
       deskWallItem('pcTable', 59, 22, 24, 28, { name: 'PC table 22"' }),
       deskWallItem('desk', 96, 52, 24, 30, { name: 'Desk 52"' }),
       deskWallItem('lampTable', 133, 22, 24, 28, { name: 'Lamp table 22"' }),
@@ -96,9 +96,36 @@ export function naeemBedroom() {
   };
 }
 
+const FT = 0.3048;
+
+/** Rectangle from feet, with a door, a window and (optionally) a closet doorway. */
+export function rectRoomFt(wFt, lFt, { closet = false, name } = {}) {
+  const W = +(wFt * FT).toFixed(4), L = +(lFt * FT).toFixed(4);
+  const r = rectRoom(W, L);
+  r.name = name || `${wFt}' × ${lFt}' room`;
+  r.height = 2.44; // 8' ceiling
+  if (closet) r.openings.push({ id: 'c1', type: 'door', swing: 'none', label: 'Closet', wall: 0, t: W - 0.6, width: 0.75 });
+  return r;
+}
+
+const P_ = (group, label, roomType, wFt, lFt, opts = {}) => ({ group, label, roomType, make: () => rectRoomFt(wFt, lFt, { ...opts, name: label }) });
+
+// Common US room sizes (feet).
 export const PRESETS = {
-  naeem: { label: "Naeem's bedroom (from handoff)", make: naeemBedroom, roomType: 'bedroom', keep: true },
-  rect: { label: '4.2 × 3.6 m rectangle', make: () => rectRoom(4.2, 3.6) },
-  lshape: { label: 'L-shaped room', make: lRoom },
-  small: { label: 'Small 3 × 3.2 m room', make: () => rectRoom(3, 3.2) },
+  bed_small: P_('Bedrooms', "Small bedroom · 10' × 10'", 'bedroom', 10, 10),
+  bed_std: P_('Bedrooms', "Standard bedroom · 11' × 12' with closet", 'bedroom', 11, 12, { closet: true }),
+  bed_kid: P_('Bedrooms', "Kid's / guest room · 10' × 11'", 'bedroom', 10, 11),
+  bed_primary: P_('Bedrooms', "Primary bedroom · 14' × 16' with closet", 'bedroom', 14, 16, { closet: true }),
+  bed_dorm: P_('Bedrooms', "Dorm room · 12' × 15' (no closet)", 'bedroom', 12, 15),
+  liv_small: P_('Living rooms', "Small living room · 12' × 14'", 'living', 12, 14),
+  liv_std: P_('Living rooms', "Living room · 14' × 18'", 'living', 14, 18),
+  liv_large: P_('Living rooms', "Large living room · 16' × 20'", 'living', 16, 20),
+  office_small: P_('Home offices', "Home office · 9' × 11'", 'office', 9, 11),
+  office_std: P_('Home offices', "Home office · 10' × 12'", 'office', 10, 12),
+  dining_std: P_('Dining rooms', "Dining room · 12' × 14'", 'dining', 12, 14),
+  dining_large: P_('Dining rooms', "Dining room · 14' × 16'", 'dining', 14, 16),
+  lshape: { group: 'Other shapes', label: 'L-shaped room', roomType: 'living', make: lRoom },
+  example: { group: 'Examples', label: "Example: furnished 12' × 13'6\" bedroom (keeps its furniture)", make: naeemBedroom, roomType: 'bedroom', keep: true },
 };
+
+export const DEFAULT_PRESET = 'bed_std';

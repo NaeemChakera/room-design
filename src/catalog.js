@@ -13,7 +13,7 @@ export const ITEMS = {
   bed:         { name: 'Double bed', w: 1.6, d: 2.1, h: 0.55, clear: 0.6 },
   singleBed:   { name: 'Single bed', w: 1.0, d: 2.05, h: 0.5, clear: 0.6 },
   nightstand:  { name: 'Nightstand', w: 0.48, d: 0.4, h: 0.55 },
-  dresser:     { name: 'Low dresser', w: 1.2, d: 0.48, h: 0.51, clear: 0.7 },
+  dresser:     { name: 'Dresser', w: 1.2, d: 0.48, h: 0.85, clear: 0.7 },
   wardrobe:    { name: 'Wardrobe', w: 1.5, d: 0.6, h: 2.1, tall: true, clear: 0.8 },
   desk:        { name: 'Desk', w: 1.3, d: 0.65, h: 0.75, clear: 0.0 },
   deskChair:   { name: 'Desk chair', w: 0.6, d: 0.6, h: 1.0 },
@@ -42,6 +42,7 @@ export const ITEMS = {
   floorMirror: { name: 'Full-length mirror', wall: true },
   sign:        { name: 'Sign', wall: true },
   pcTower:     { name: 'PC tower', top: true },
+  laptop:      { name: 'Laptop', top: true },
   monitor:     { name: 'Monitor', top: true },
   projector:   { name: 'Ceiling projector', ceiling: true },
   sconce:      { name: 'Wall sconce', wall: true, light: true },
@@ -174,4 +175,28 @@ export function surfaces(S, room) {
   }
   if (room?.wallColor) out.wall = room.wallColor;
   return out;
+}
+
+// "What to include" options. `rooms` = room types (plus 'keep' for keep-my-furniture) where it applies;
+// `on` = room types where it is on by default.
+export const INCLUDE_OPTIONS = [
+  { key: 'desk', label: 'Desk', rooms: ['bedroom'], on: ['bedroom'] },
+  { key: 'laptop', label: 'Laptop on the desk', rooms: ['bedroom', 'office', 'keep'], on: ['bedroom', 'office', 'keep'] },
+  { key: 'dresser', label: 'Dresser', rooms: ['bedroom'], on: ['bedroom'] },
+  { key: 'wardrobe', label: 'Wardrobe', hint: 'only if there is no closet', rooms: ['bedroom'], on: ['bedroom'] },
+  { key: 'nightstands', label: 'Bedside cabinets', rooms: ['bedroom'], on: ['bedroom'] },
+  { key: 'tv', label: 'TV & media console', rooms: ['living'], on: ['living'] },
+  { key: 'frames', label: 'Frames & art', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
+  { key: 'plants', label: 'Plants', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
+  { key: 'lighting', label: 'Lamps & lighting', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
+  { key: 'rug', label: 'Rug', rooms: ['bedroom', 'living', 'dining', 'keep'], on: ['bedroom', 'living', 'dining', 'keep'] },
+  { key: 'shelves', label: 'Shelves', rooms: ['bedroom', 'living', 'office', 'dining', 'keep'], on: ['bedroom', 'living', 'office', 'dining', 'keep'] },
+  { key: 'mirrors', label: 'Mirrors', rooms: ['bedroom', 'dining', 'keep'], on: ['bedroom', 'dining', 'keep'] },
+  { key: 'readingChair', label: 'Reading chair', rooms: ['bedroom', 'living', 'office'], on: ['bedroom', 'living', 'office'] },
+  { key: 'bookshelf', label: 'Bookshelf', rooms: ['bedroom', 'living', 'office'], on: ['living', 'office'] },
+  { key: 'bench', label: 'Bench at the foot of the bed', rooms: ['bedroom', 'keep'], on: [] },
+];
+
+export function defaultInclude(roomKey) {
+  return INCLUDE_OPTIONS.filter((o) => o.on.includes(roomKey)).map((o) => o.key);
 }

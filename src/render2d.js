@@ -156,8 +156,10 @@ export function drawItem(ctx, it, S) {
     }
     case 'desk': {
       roundRect(ctx, -hw, -hd, w, d, 0.02); fillStroke(ctx, S.wood);
-      ctx.fillStyle = '#2c2f33'; roundRect(ctx, -0.28, -hd + 0.05, 0.56, 0.05, 0.01); ctx.fill(); // monitor
-      ctx.fillStyle = '#d9d9d9'; roundRect(ctx, -0.2, 0.02, 0.4, 0.13, 0.01); ctx.fill(); // keyboard
+      if (it.monitor !== false) {
+        ctx.fillStyle = '#2c2f33'; roundRect(ctx, -0.28, -hd + 0.05, 0.56, 0.05, 0.01); ctx.fill(); // monitor
+        ctx.fillStyle = '#d9d9d9'; roundRect(ctx, -0.2, 0.02, 0.4, 0.13, 0.01); ctx.fill(); // keyboard
+      }
       break;
     }
     case 'deskChair': {
@@ -211,6 +213,11 @@ function drawTopItem(ctx, it, S) {
     case 'pcTower':
       ctx.fillStyle = '#1d1f22'; roundRect(ctx, -0.11, -0.22, 0.22, 0.44, 0.02); ctx.fill();
       ctx.fillStyle = '#e8a23a'; ctx.beginPath(); ctx.arc(0, 0.12, 0.05, 0, 7); ctx.fill();
+      break;
+    case 'laptop':
+      ctx.fillStyle = '#9ea3a8'; roundRect(ctx, -0.17, -0.12, 0.34, 0.24, 0.015); ctx.fill();
+      ctx.fillStyle = '#2c2f33'; roundRect(ctx, -0.17, -0.13, 0.34, 0.035, 0.01); ctx.fill(); // screen edge
+      ctx.fillStyle = '#c8cbce'; roundRect(ctx, -0.13, -0.06, 0.26, 0.1, 0.008); ctx.fill(); // keys
       break;
     case 'monitor':
       ctx.fillStyle = '#1d1f22'; roundRect(ctx, -0.42, -0.06, 0.84, 0.07, 0.02); ctx.fill();
