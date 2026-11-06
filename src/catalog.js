@@ -13,7 +13,7 @@ export const ITEMS = {
   bed:         { name: 'Double bed', w: 1.6, d: 2.1, h: 0.55, clear: 0.6 },
   singleBed:   { name: 'Single bed', w: 1.0, d: 2.05, h: 0.5, clear: 0.6 },
   nightstand:  { name: 'Nightstand', w: 0.48, d: 0.4, h: 0.55 },
-  dresser:     { name: 'Dresser', w: 1.2, d: 0.48, h: 0.85, clear: 0.7 },
+  dresser:     { name: 'Low dresser', w: 1.2, d: 0.48, h: 0.51, clear: 0.7 },
   wardrobe:    { name: 'Wardrobe', w: 1.5, d: 0.6, h: 2.1, tall: true, clear: 0.8 },
   desk:        { name: 'Desk', w: 1.3, d: 0.65, h: 0.75, clear: 0.0 },
   deskChair:   { name: 'Desk chair', w: 0.6, d: 0.6, h: 1.0 },

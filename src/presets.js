@@ -74,7 +74,7 @@ export function naeemBedroom() {
       'Before rebuilding: patch the old bike-rack holes and use matte white paint for a cleaner projection surface.',
     ],
     fixed: [
-      deskWallItem('dresser', 24, 48, 24, 40, { name: 'Dresser 48"' }),
+      deskWallItem('dresser', 24, 48, 24, 24, { name: 'Dresser 48" (low, 24" tall)' }),
       deskWallItem('pcTable', 59, 22, 24, 28, { name: 'PC table 22"' }),
       deskWallItem('desk', 96, 52, 24, 30, { name: 'Desk 52"' }),
       deskWallItem('lampTable', 133, 22, 24, 28, { name: 'Lamp table 22"' }),
