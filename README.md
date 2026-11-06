@@ -16,7 +16,7 @@ npm run build    # static site in dist/
 The workflow in `.github/workflows/pages.yml` runs the tests, builds the site and deploys it whenever you push. Turn it on once:
 
 1. In the repo on GitHub, open **Settings → Pages**.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
+2. Under **Build and deployment → Source**, choose **GitHub Actions** (recommended: serves the bundled build). "Deploy from a branch" also works: the page then loads three.js from the jsDelivr CDN through the import map in `index.html`.
 3. Push a commit, or run the workflow from the **Actions** tab.
 
 The site goes live at `https://<your-username>.github.io/room-design/`.
