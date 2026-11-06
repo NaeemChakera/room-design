@@ -11,6 +11,16 @@ npm test         # design-engine tests
 npm run build    # static site in dist/
 ```
 
+## Publish on GitHub Pages
+
+The workflow in `.github/workflows/pages.yml` runs the tests, builds the site and deploys it whenever you push. Turn it on once:
+
+1. In the repo on GitHub, open **Settings → Pages**.
+2. Under **Build and deployment → Source**, choose **GitHub Actions**.
+3. Push a commit, or run the workflow from the **Actions** tab.
+
+The site goes live at `https://<your-username>.github.io/room-design/`.
+
 ## How it works
 
 1. **Trace the room.** Tap the corners on the grid. Lines snap to right angles and the first corner closes the shape. Then drag corners, drag the dot on a wall to push the whole wall, double-tap a wall to add a corner, or type exact lengths (`12' 6"`, `3.8 m`, `420cm`). You can also trace over a photo of a floor plan or a sketch, then use **Set scale** on one wall you know.
