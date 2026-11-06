@@ -39,8 +39,6 @@ export const SHOP = {
   frame: { q: 'picture frame', new: [10, 60], used: [2, 12], verdict: 'thrift', tip: 'Thrift frames are ~90% cheaper than retail: keep the frame, swap the art, or spray-paint mismatched ones the same finish.' },
   shelf: { q: 'floating shelf', new: [15, 60], used: [5, 20], verdict: 'either', tip: 'Use wall anchors or studs; leave room for a trailing plant.' },
   mirror: { q: 'wall mirror', new: [30, 200], used: [8, 50], verdict: 'thrift', tip: 'Ornate thrift mirrors look expensive; check the silvering isn\'t flaking.' },
-  screen: { q: 'pull down projector screen', new: [60, 250], used: [20, 90], verdict: 'either', tip: 'Matte white or grey screens beat a painted wall; check the case length fits your wall.' },
-  projector: { q: '1080p projector', new: [150, 800], used: [70, 400], verdict: 'either', tip: 'Check the throw ratio for your distance and get a ceiling mount; refurbished units from the maker are good value.' },
   floorMirror: { q: 'full length mirror', new: [30, 150], used: [10, 40], verdict: 'thrift', tip: 'Mount it with mirror clips or a cleat rather than leaning it in a walkway.' },
 };
 
@@ -52,8 +50,8 @@ export function searchQuery(item, styleName) {
   if (item.type === 'frame' && item.width) return `${inch(item.width)}x${inch(item.height)} picture frame ${item.finishName || ''}`.trim();
   if (item.type === 'shelf' && item.width) return item.ledge ? `${inch(item.width)} inch picture ledge shelf` : `${inch(item.width)} inch floating shelf`;
   if (item.type === 'mirror' && item.round) return `${inch(item.width)} inch round mirror`;
-  if (item.type === 'screen' && item.diag) return `${item.diag} inch pull down projector screen 16:9`;
   if (item.type === 'floorMirror' && item.width) return `${inch(item.width)}x${inch(item.height)} full length wall mirror`;
+  if (item.type === 'bed') return `${style} ${/queen/i.test(item.name || '') ? 'queen' : 'full'} bed frame`.trim();
   if (item.type === 'rug' && item.w) return `${Math.round(item.w / 0.3048)}x${Math.round(item.d / 0.3048)} ${style} rug`.trim();
   return `${style} ${s.q}`.trim();
 }

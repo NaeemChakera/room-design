@@ -302,12 +302,6 @@ function drawWallItem(ctx, wi, wall, S) {
     case 'sign':
       ctx.fillStyle = '#2f5d3a'; ctx.fillRect(-hw, -0.015, wi.width, 0.03);
       break;
-    case 'screen':
-      ctx.fillStyle = '#2b2b2b'; ctx.fillRect(-hw - 0.05, -0.05, wi.width + 0.1, 0.1); // case
-      ctx.fillStyle = '#f4f4f2'; ctx.fillRect(-hw, -0.02, wi.width, 0.04);
-      ctx.save(); ctx.setLineDash([0.06, 0.04]); ctx.strokeStyle = 'rgba(80,90,200,0.5)'; ctx.lineWidth = 0.012;
-      ctx.beginPath(); ctx.moveTo(-hw, 0); ctx.lineTo(-0.05, wi.width * 1.4); ctx.moveTo(hw, 0); ctx.lineTo(0.05, wi.width * 1.4); ctx.stroke(); ctx.restore();
-      break;
     case 'sconce':
       drawLampGlow(ctx, 0.5);
       ctx.beginPath(); ctx.arc(0, 0, 0.07, 0, 7); fillStroke(ctx, '#fff3d6', S.metal, 0.015);

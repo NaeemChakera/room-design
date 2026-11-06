@@ -456,18 +456,6 @@ function buildWallItem(wi, S, lights) {
       g.add(box(wi.width, wi.height, 0.01, mat('#2f5d3a'), 0, 0, 0.005));
       break;
     }
-    case 'screen': {
-      g.add(box(wi.width + 0.12, 0.08, 0.08, mat('#2b2b2b'), 0, wi.height + 0.02, 0.05)); // roller case
-      const scr = new THREE.Mesh(new THREE.PlaneGeometry(wi.width, wi.height), new THREE.MeshStandardMaterial({ color: '#f4f4f2', emissive: '#b9c2ea', emissiveIntensity: 0.25, roughness: 0.95 }));
-      scr.position.set(0, wi.height / 2, 0.05);
-      g.add(scr);
-      const border = mat('#1d1d1d');
-      g.add(box(wi.width, 0.03, 0.005, border, 0, 0, 0.052));
-      g.add(box(0.03, wi.height, 0.005, border, -wi.width / 2, 0, 0.052));
-      g.add(box(0.03, wi.height, 0.005, border, wi.width / 2, 0, 0.052));
-      g.add(box(wi.width * 0.98, 0.02, 0.02, mat('#2b2b2b'), 0, -0.01, 0.05)); // weighted bar
-      break;
-    }
     case 'sconce': {
       g.add(box(0.08, 0.12, 0.03, mat(S.metal, { metalness: 0.6 }), 0, 0.05, 0.015));
       const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 16, 1, true), lampShade('#fff1d0'));

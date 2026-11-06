@@ -309,38 +309,6 @@ class Layout {
     return this.room.wallNames?.[wall.i] || `${(wall.length / 0.0254 / 12).toFixed(1)}' wall`;
   }
 
-  /** Pull-down projector screen on the wall a bed/sofa faces, with a ceiling projector. */
-  projectorSetup(viewer, who) {
-    if (!this.want('projector')) return false;
-    if (this.wallItems.some((w) => w.type === 'projection' || w.type === 'screen')) return false;
-    const f = frontOf(viewer);
-    const start = add(centerOf(viewer), mul(f, viewer.d / 2));
-    const hit = raycastWalls(start, f, this.walls);
-    if (!hit || hit.distance < 1.6) return false;
-    const z = who === 'bed' ? 0.95 : 0.85;
-    const ceiling = (this.room.height || 2.5) - 0.12;
-    for (const diag of [100, 90, 80, 70, 60]) {
-      const w = diag * 0.0254 * 16 / Math.hypot(16, 9), h = w * 9 / 16;
-      if (z + h + 0.12 > ceiling) continue;
-      // keep the screen a comfortable size for the distance (~1.2–1.6× its width)
-      if (hit.distance < w * 1.1) continue;
-      for (const off of [0, 0.15, -0.15, 0.3, -0.3, 0.5, -0.5]) {
-        const t = hit.t + off;
-        if (t - w / 2 < 0.05 || t + w / 2 > hit.wall.length - 0.05) continue;
-        if (!this.fitsOnWall(hit.wall, t, w + 0.1, z - 0.02, z + h + 0.12)) continue;
-        this.addWall('screen', hit.wall, t, w, h, z, { depth: 0.08, name: `${diag}" projector screen`, diag });
-        const throwD = Math.min(w * 1.5, hit.distance + viewer.d * 0.5);
-        const pp = add(add(hit.wall.a, mul(hit.wall.dir, t)), mul(hit.wall.n, throwD));
-        this.topItems.push({ id: this.nextId++, type: 'projector', name: 'Ceiling projector', x: pp.x, y: pp.y, z: (this.room.height || 2.5) - 0.25, ceiling: true, theta: Math.atan2(hit.wall.dir.y, hit.wall.dir.x) });
-        this.note(`${diag}" pull-down projector screen on the wall the ${who} faces, ${Math.round(z / 0.0254)}" off the floor; projector on the ceiling about ${(throwD / 0.3048).toFixed(1)}' back (a standard ~1.5 throw ratio).`);
-        this.score += 3;
-        return true;
-      }
-    }
-    this.note(`Not enough clear wall opposite the ${who} for a projector screen.`);
-    return false;
-  }
-
   /** Feng shui fix: a bench at the foot of the bed blocks a straight line to the door. */
   footBench(bed) {
     const f = frontOf(bed);
@@ -811,9 +779,7 @@ function livingRoom(L) {
     if (mc) {
       media = L.add('mediaUnit', mc.box, { w });
       const tvz = 0.9;
-      if (L.want('projector')) {
-        // projector screen goes here instead of a TV
-      } else if (L.fitsOnWall(mc.wall, mc.t, ITEMS.tv.w, tvz, tvz + ITEMS.tv.h, media)) {
+      if (L.fitsOnWall(mc.wall, mc.t, ITEMS.tv.w, tvz, tvz + ITEMS.tv.h, media)) {
         L.addWall('tv', mc.wall, mc.t, ITEMS.tv.w, ITEMS.tv.h, tvz, { depth: 0.06 });
         L.note('TV wall-mounted over a low media console, directly across from the sofa.');
       } else {
@@ -822,8 +788,6 @@ function livingRoom(L) {
       if (L.rand() < 0.8) L.addTop('plantSmall', media, v(media.w / 2 - 0.2, 0));
     }
   }
-
-  L.projectorSetup(sofa, 'sofa');
 
   // Coffee table + rug
   const cs = ITEMS.coffeeTable;
@@ -910,15 +874,21 @@ function livingRoom(L) {
 function bedroom(L) {
   const minSide = Math.min(polygonBounds(L.poly).w, polygonBounds(L.poly).h);
   const bedType = minSide >= 2.7 && L.area >= 8.5 ? 'bed' : 'singleBed';
-  const bs = ITEMS[bedType];
-  const bedC = L.choose(L.wallCandidates(bs.w, bs.d, { clear: 0.7 }), (c) => {
-    let sc = 10;
+  // Full-size (54") in compact rooms, queen-ish (63") otherwise.
+  const bs = bedType === 'bed' && minSide < 3.2 ? { ...ITEMS.bed, name: 'Full bed', w: 1.37, d: 1.95 } : bedType === 'bed' ? { ...ITEMS.bed, name: 'Queen bed' } : ITEMS[bedType];
+  // Candidates for the chosen size, plus a full-size fallback when a queen won't leave room for two cabinets.
+  const sizes = [bs];
+  if (bedType === 'bed' && bs.w > 1.4) sizes.push({ ...ITEMS.bed, name: 'Full bed', w: 1.37, d: 1.95, smaller: true });
+  const bedCands = sizes.flatMap((sz) => L.wallCandidates(sz.w, sz.d, { clear: 0.7 }).map((c) => ({ ...c, size: sz })));
+  const bedC = L.choose(bedCands, (c) => {
+    let sc = c.size.smaller ? 7 : 10;
     const p = centerOf(c.box);
     // side clearance (double bed needs both sides)
-    const sideOk = [-1, 1].map((s) => L.canPlace(sideNeighbour(L, c.box, 'nightstand', s, { w: 0.5, d: 0.6 })));
+    const sideOk = [-1, 1].map((s) => L.canPlace(sideNeighbour(L, c.box, 'nightstand', s, { w: 0.35, d: 0.4, gap: 0.04 })));
     if (bedType === 'bed' && !sideOk.some(Boolean)) return -Infinity;
-    sc += sideOk.filter(Boolean).length * 3;
-    sc -= L.windowsOnWall(c.wall, c.t - bs.w / 2, c.t + bs.w / 2).length * 5; // no headboard under windows
+    // bedside cabinets on both sides when the user wants them
+    sc += sideOk.filter(Boolean).length * (L.want('nightstands') ? 9 : 3);
+    sc -= L.windowsOnWall(c.wall, c.t - c.size.w / 2, c.t + c.size.w / 2).length * 5; // no headboard under windows
     // command position: door visible but not straight in line with the bed
     for (const bd of L.bathDoors) {
       // don't sleep facing the bathroom door or with it in your headboard wall
@@ -934,32 +904,43 @@ function bedroom(L) {
       else sc -= 3 * fs; // door behind/next to the headboard
       if (dr.wall === c.wall.i) sc -= 2;
     }
-    if (L.opts.fengShui) sc -= L.windowsOnWall(c.wall, c.t - bs.w / 2, c.t + bs.w / 2).length * 6;
+    if (L.opts.fengShui) sc -= L.windowsOnWall(c.wall, c.t - c.size.w / 2, c.t + c.size.w / 2).length * 6;
     sc -= Math.abs(c.t - (c.interval[0] + c.interval[1]) / 2) * 1.5;
     return sc;
   });
   if (!bedC) { L.note('Could not fit a bed with walk-around space.'); L.score -= 50; return; }
-  const bed = L.add(bedType, bedC.box, { clear: 0.6 });
-  L.note(`${bs.name} with the headboard on a solid wall, where you can see the door from bed.`);
+  const bed = L.add(bedType, bedC.box, { clear: 0.6, name: bedC.size.name });
+  L.note(`${bedC.size.name} with the headboard on a solid wall, where you can see the door from bed.`);
 
   if (L.want('nightstands')) {
     let stands = 0;
     const useSconces = ['modern', 'neodeco', 'japandi'].includes(L.opts.style) ? L.rand() < 0.7 : L.rand() < 0.25;
     let lamps = 0;
+    let plantDone = false;
     for (const side of [-1, 1]) {
-      const b = sideNeighbour(L, bed, 'nightstand', side, { gap: 0.04 });
-      if (L.canPlace(b)) {
-        const ns = L.add('nightstand', b);
-        if (useSconces) { if (L.addWall('sconce', bedC.wall, bedC.t + side * (bed.w / 2 + 0.26), 0.16, 0.24, 1.15, { depth: 0.15 })) lamps++; }
-        else if (L.addTop('tableLamp', ns)) lamps++;
-        L.addTop('plantSmall', ns, v(0.12, 0.05));
-        stands++;
+      let b = null;
+      for (const w of [0.48, 0.4, 0.35]) {
+        const cand = sideNeighbour(L, bed, 'nightstand', side, { gap: 0.04, w, d: 0.4 });
+        if (L.canPlace(cand)) { b = cand; break; }
       }
+      if (!b) continue;
+      const ns = L.add('nightstand', b);
+      // The bed is on the -side of this cabinet (in the cabinet's own x axis).
+      // Lamp sits toward the bed, the small plant toward the outside, so they never overlap.
+      let hasLamp = false;
+      if (useSconces) { if (L.addWall('sconce', bedC.wall, bedC.t + side * (bed.w / 2 + 0.04 + ns.w / 2), 0.16, 0.24, 1.15, { depth: 0.15 })) { lamps++; } }
+      else if (L.addTop('tableLamp', ns, v(-side * 0.06, -0.02))) { lamps++; hasLamp = true; }
+      // keep part of the tops clear: one small plant, on one cabinet only
+      if (!plantDone && (!hasLamp || ns.w >= 0.44)) {
+        if (L.addTop('plantSmall', ns, v(hasLamp ? side * (ns.w / 2 - 0.08) : 0, 0.05))) plantDone = true;
+      }
+      stands++;
     }
+    L.score += stands === 2 ? 24 : stands * 4; // a cabinet on both sides is what people expect
     if (stands) L.note(`${stands === 2 ? 'Matching bedside cabinets' : 'A bedside cabinet'}${lamps ? ` with ${useSconces ? 'wall sconces above, leaving the top clear' : stands === 2 ? 'bedside lamps on both sides' : 'a bedside lamp'}` : ''}.`);
   }
 
-  if ((L.opts.fengShui && L.area > 10) || L.want('bench')) L.footBench(bed);
+  if (L.want('bench')) L.footBench(bed);
   const f = frontOf(bed);
   const rugW = bed.w + 1.1, rugD = Math.min(2.0, bed.d * 0.75);
   const rc = add(centerOf(bed), mul(f, bed.d / 2 - rugD / 2 + 0.55));
@@ -981,12 +962,17 @@ function bedroom(L) {
     }
   }
 
+  // Desk: on a wall facing into the room with daylight from the side.
+  if (L.want('desk')) placeDesk(L, { avoidWall: bedC.wall.i, laptop: true, label: 'Desk' });
+
   // Dresser: by the door/closet, where the wardrobe would go — you dress where your clothes are.
   let dresser = null;
   if (L.want('dresser')) {
     const ds = ITEMS.dresser;
     const closetDoor = L.doors.find((d) => d.swing === 'none' || d.kind === 'wardrobe');
-    const dc = L.choose(L.wallCandidates(ds.w, ds.d, { clear: 0.7 }), (c) => {
+    let dcands = [];
+    for (const [w, clr] of [[ds.w, 0.7], [1.0, 0.65], [0.8, 0.6]]) { dcands = L.wallCandidates(w, ds.d, { clear: clr }); if (dcands.length) break; }
+    const dc = L.choose(dcands, (c) => {
       const p = centerOf(c.box);
       let sc = 5 - L.doorDistance(p) * 0.4;
       if (closetDoor) sc += 3 / (0.5 + dist(p, closetDoor.pos));
@@ -995,7 +981,7 @@ function bedroom(L) {
       return sc;
     });
     if (dc) {
-      dresser = L.add('dresser', dc.box, { clear: 0.7 });
+      dresser = L.add('dresser', dc.box, { clear: 0.6 });
       L.addTop('plantSmall', dresser, v(dresser.w / 2 - 0.18, 0));
       const mirrorSeesBed = dot(frontOf(dresser), norm(sub(centerOf(bed), centerOf(dresser)))) > 0.5;
       let hung = null;
@@ -1010,9 +996,7 @@ function bedroom(L) {
     }
   }
 
-  // Desk: on a wall facing into the room with daylight from the side.
-  if (L.want('desk')) placeDesk(L, { avoidWall: bedC.wall.i, laptop: true, label: 'Desk' });
-  L.projectorSetup(bed, 'bed');
+
 
   // Reading corner
   if (L.area > 13 && L.want('readingChair')) {
@@ -1052,8 +1036,12 @@ function bedroom(L) {
 /** A desk against a wall: daylight from the side, door not behind you. */
 function placeDesk(L, { avoidWall = -1, laptop = false, label = 'Desk' } = {}) {
   const ds = ITEMS.desk;
-  const dw = Math.min(1.2, Math.max(...L.walls.map((w) => w.length)) - 0.3);
-  const c = L.choose(L.wallCandidates(dw, 0.6, { clear: 0.9 }), (cand) => {
+  let dw = 1.2, dd = 0.6, cands = [];
+  for (const [w, d, clr] of [[1.2, 0.6, 0.9], [1.0, 0.55, 0.8], [0.9, 0.5, 0.75], [0.8, 0.45, 0.7]]) {
+    cands = L.wallCandidates(w, d, { clear: clr });
+    if (cands.length) { dw = w; dd = d; break; }
+  }
+  const c = L.choose(cands, (cand) => {
     const p = centerOf(cand.box);
     let sc = 6;
     for (const o of L.windows) {
@@ -1069,15 +1057,15 @@ function placeDesk(L, { avoidWall = -1, laptop = false, label = 'Desk' } = {}) {
     return sc;
   });
   if (!c) return null;
-  const desk = L.add('desk', c.box, { w: dw, d: 0.6, clear: 0, monitor: !laptop });
+  const desk = L.add('desk', c.box, { w: dw, d: dd, clear: 0, monitor: !laptop, name: dw < 1.1 ? 'Compact desk' : 'Desk' });
   void ds;
   const cp = add(centerOf(desk), mul(frontOf(desk), desk.d / 2 + 0.15));
   const chairBox = { x: cp.x, y: cp.y, w: 0.6, d: 0.6, theta: desk.theta + Math.PI };
   if (L.canPlace(chairBox, { ignore: [desk.id] })) L.add('deskChair', chairBox, { parent: desk.id });
   const lap = laptop ? L.addTop('laptop', desk, v(0, -0.02)) : null;
   if (!lap) desk.monitor = true;
-  L.addTop('deskLamp', desk, v(-desk.w / 2 + 0.18, -0.12));
-  L.addTop('plantSmall', desk, v(desk.w / 2 - 0.15, -0.15));
+  L.addTop('deskLamp', desk, v(-desk.w / 2 + 0.12, -desk.d / 2 + 0.12));
+  if (desk.w >= 1.0) L.addTop('plantSmall', desk, v(desk.w / 2 - 0.1, -desk.d / 2 + 0.1));
   L.note(`${label} ${L.windows.some((o) => dist(o.pos, centerOf(desk)) < 2.5) ? 'near the window for daylight' : 'on a quiet wall'}${lap ? ', set up with a laptop' : ''}.`);
   return desk;
 }
@@ -1282,10 +1270,9 @@ function keepFurniture(L) {
     const rugD = Math.min(1.8, bed.d * 0.7);
     const rc = add(centerOf(bed), mul(f, bed.d / 2 - rugD / 2 + 0.5));
     L.placeRug(rc.x, rc.y, bed.w + 0.9, rugD, bed.theta, 'under the foot of the bed, sticking out toward the open floor');
-    if (L.opts.fengShui || L.want('bench')) L.footBench(bed);
+    if (L.want('bench')) L.footBench(bed);
   }
 
-  if (bed) L.projectorSetup(bed, 'bed');
   if (rethink && L.want('frames')) L.galleryFromInventory(room.frameInventory);
 
   // Full-length mirror: a free stretch of wall at floor level, ideally near the closet/dresser.

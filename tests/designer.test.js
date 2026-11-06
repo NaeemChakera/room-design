@@ -97,16 +97,14 @@ test('include picker: closet means no wardrobe; bedroom gets dresser + desk with
   console.log('no closet:', noCloset.items.map((i) => i.type).join(','));
 });
 
-test('wardrobe & bathroom doors, projector screen, one big plant', () => {
+test('wardrobe & bathroom doors, one big plant', () => {
   const room = { ...rooms.rect, openings: [...rooms.rect.openings, { type: 'door', kind: 'wardrobe', swing: 'slide', label: 'Wardrobe', wall: 2, t: 2.6, width: 1.5 }, { type: 'door', kind: 'bathroom', wall: 0, t: 0.6, width: 0.75 }] };
-  const ds = generateDesigns(room, { roomType: 'bedroom', style: 'boho', iterations: 30, include: ['dresser', 'desk', 'laptop', 'nightstands', 'plants', 'lighting', 'projector', 'wardrobe', 'frames'] });
+  const ds = generateDesigns(room, { roomType: 'bedroom', style: 'boho', iterations: 30, include: ['dresser', 'desk', 'laptop', 'nightstands', 'plants', 'lighting', 'wardrobe', 'frames'] });
   const d = ds[0];
   assert.ok(!d.items.some((i) => i.type === 'wardrobe'), 'built-in wardrobe doors replace a wardrobe');
-  assert.ok(d.wallItems.some((w) => w.type === 'screen') && d.topItems.some((t) => t.type === 'projector'), 'screen + projector');
   for (const x of ds) assert.ok(x.items.filter((i) => i.type === 'plantLarge').length <= 1, 'max one large plant');
   const boho = generateDesigns(rooms.L, { roomType: 'living', style: 'afrohemian', iterations: 20 });
   for (const x of boho) assert.ok(x.items.filter((i) => i.type === 'plantLarge').length <= 1, 'max one large plant (living)');
-  console.log('proj', d.notes.find((n) => n.includes('projector screen')));
 });
 
 test('at most two floor plants', () => {
@@ -115,4 +113,25 @@ test('at most two floor plants', () => {
       assert.ok(d.items.filter((i) => i.type === 'plantLarge' || i.type === 'plantMedium').length <= 2, rt);
     }
   }
+});
+
+import { PRESETS } from '../src/presets.js';
+test('bedroom presets: two bedside cabinets, desk + laptop, no surprise bench, lamps clear of plants', () => {
+  for (const k of ['bed_small', 'bed_std', 'bed_kid', 'bed_primary', 'bed_dorm']) {
+    for (const fengShui of [false, true]) {
+      const d = generateDesigns(PRESETS[k].make(), { roomType: 'bedroom', style: 'scandinavian', iterations: 70, fengShui })[0];
+      const n = (t) => d.items.filter((i) => i.type === t).length;
+      assert.equal(n('nightstand'), 2, `${k}: two bedside cabinets`);
+      assert.equal(n('desk'), 1, `${k}: desk`);
+      assert.ok(d.topItems.some((t) => t.type === 'laptop'), `${k}: laptop`);
+      assert.equal(n('bench'), 0, `${k}: no bench unless chosen`);
+      for (const pl of d.topItems.filter((t) => t.type === 'plantSmall')) {
+        for (const l of d.topItems.filter((t) => t.type === 'tableLamp' || t.type === 'deskLamp')) {
+          assert.ok(Math.hypot(l.x - pl.x, l.y - pl.y) >= 0.2, `${k}: plant clear of lamp`);
+        }
+      }
+    }
+  }
+  const withBench = generateDesigns(PRESETS.bed_primary.make(), { roomType: 'bedroom', style: 'scandinavian', iterations: 20, include: ['nightstands', 'bench'] })[0];
+  assert.equal(withBench.items.filter((i) => i.type === 'bench').length, 1, 'bench when chosen');
 });

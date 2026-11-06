@@ -177,7 +177,7 @@ export function fengShuiReport(room, design) {
     });
     if (overBed.length) add_('warn', 'Something heavy hangs near the bed', `${overBed.map((h) => h.name).join(', ')} hangs over or right next to where you sleep.`, 'Keep anything above or beside the bed light; anchor heavy pieces into studs.');
     // electronics
-    const tech = items.filter((i) => i.type === 'desk' || i.type === 'mediaUnit').length + wallItems.filter((w) => w.type === 'tv' || w.type === 'projection' || w.type === 'screen').length + (design?.topItems || []).filter((t) => t.type === 'pcTower' || t.type === 'monitor' || t.type === 'projector').length;
+    const tech = items.filter((i) => i.type === 'desk' || i.type === 'mediaUnit').length + wallItems.filter((w) => w.type === 'tv' || w.type === 'projection').length + (design?.topItems || []).filter((t) => t.type === 'pcTower' || t.type === 'monitor' || t.type === 'projector').length;
     if (tech) add_('warn', 'Work and screens share the bedroom', 'Desk, screens or a projector bring "active" energy into a room meant for rest.', 'Drape a throw over the monitor at night, power down at the wall, and keep the desk cleared before bed.');
     add_('tip', 'Under the bed', 'Feng shui wants the space under the bed clear so energy can circulate.', 'If you store things there, keep it to soft items like bedding, in closed bins.');
   }
