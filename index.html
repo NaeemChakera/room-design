@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Roomcraft</title>
+  <meta name="description" content="Trace your room into a floor plan, then auto-design it with furniture, frames, shelves, plants and lamps." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='3' width='26' height='26' rx='6' fill='%232d6cdf'/><path d='M9 23V12l7-4 7 4v11z' fill='white'/></svg>" />
+  <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo"></span>Roomcraft</div>
+    <nav class="steps" id="steps">
+      <button data-step="1"><b>1</b> Trace room</button>
+      <button data-step="2"><b>2</b> Doors &amp; windows</button>
+      <button data-step="3"><b>3</b> Design</button>
+    </nav>
+    <div class="top-actions">
+      <select id="units" title="Units">
+        <option value="imperial">ft / in</option>
+        <option value="metric">meters</option>
+      </select>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage">
+      <div class="stage-tabs" id="viewTabs" hidden>
+        <button data-view="2d" class="active">Floor plan</button>
+        <button data-view="3d">3D view</button>
+      </div>
+      <div class="canvas-wrap" id="canvasWrap">
+        <canvas id="plan"></canvas>
+        <div id="view3d" class="view3d" hidden></div>
+        <div class="hint" id="hint"></div>
+        <div class="tooltip" id="tooltip" hidden></div>
+        <div class="zoom">
+          <button id="zoomIn" title="Zoom in">+</button>
+          <button id="zoomOut" title="Zoom out">−</button>
+          <button id="zoomFit" title="Fit">⤢</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel" id="panel">
+      <!-- Step 1 -->
+      <div class="step-panel" data-panel="1">
+        <h2>Trace your room</h2>
+        <p class="muted">Tap the corners of your room in order. Lines snap to right angles. Tap the first corner to close the outline, then drag corners or type exact wall lengths.</p>
+
+        <div class="card">
+          <label class="lbl">Start from</label>
+          <div class="row">
+            <select id="presetSelect"></select>
+            <button id="loadPreset" class="btn">Load</button>
+          </div>
+          <div class="row">
+            <button id="drawNew" class="btn primary">✎ Draw my own</button>
+          </div>
+          <details>
+            <summary>Quick rectangle</summary>
+            <div class="row">
+              <input id="rectW" type="text" value="12'" aria-label="Width" />
+              <span>×</span>
+              <input id="rectL" type="text" value="13' 6&quot;" aria-label="Length" />
+              <button id="makeRect" class="btn">Create</button>
+            </div>
+          </details>
+        </div>
+
+        <div class="card">
+          <label class="lbl">Trace over a photo or sketch (optional)</label>
+          <p class="muted small">Upload a photo of a floor plan, a hand sketch or a screenshot, trace over it, then set the scale from one wall you know.</p>
+          <input type="file" id="photoInput" accept="image/*" />
+          <div class="row" id="photoControls" hidden>
+            <label class="small">Opacity <input type="range" id="photoOpacity" min="0" max="1" step="0.05" value="0.5" /></label>
+            <button id="photoRemove" class="btn ghost small">Remove</button>
+          </div>
+        </div>
+
+        <div class="card" id="wallCard" hidden>
+          <label class="lbl">Walls</label>
+          <ol id="wallList" class="wall-list"></ol>
+          <div class="row">
+            <label class="small">Ceiling height <input type="text" id="ceiling" /></label>
+          </div>
+          <p class="small muted" id="areaInfo"></p>
+          <p class="warn small" id="shapeWarn" hidden>Walls are crossing — drag a corner to fix the outline.</p>
+        </div>
+        <div class="card" id="measureNote" hidden></div>
+
+        <button class="btn primary wide" id="toStep2" disabled>Next: doors &amp; windows →</button>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step-panel" data-panel="2" hidden>
+        <h2>Doors &amp; windows</h2>
+        <p class="muted">Pick a tool, then tap a wall to place it. Drag to slide it along the wall.</p>
+        <div class="row tools">
+          <button class="btn tool" data-tool="door">🚪 Door</button>
+          <button class="btn tool" data-tool="opening">▭ Open doorway</button>
+          <button class="btn tool" data-tool="window">🪟 Window</button>
+        </div>
+        <ol id="openingList" class="opening-list"></ol>
+        <div class="row">
+          <button class="btn" id="backTo1">← Back</button>
+          <button class="btn primary" id="toStep3">Next: design →</button>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step-panel" data-panel="3" hidden>
+        <h2>Design</h2>
+        <div class="card">
+          <label class="lbl">Room type</label>
+          <div class="chips" id="roomTypes"></div>
+          <div id="keepWrap" hidden>
+            <label class="toggle"><input type="checkbox" id="keepToggle" checked /> Keep my furniture, only add decor</label>
+          </div>
+          <label class="lbl">Style</label>
+          <div class="styles" id="styles"></div>
+          <button class="btn primary wide" id="generate">✨ Design my room</button>
+        </div>
+
+        <div id="results" hidden>
+          <label class="lbl">Layouts <span class="muted small">(best first)</span></label>
+          <div class="alts" id="alts"></div>
+          <div class="metrics" id="metrics"></div>
+          <details open>
+            <summary>Why it's laid out this way</summary>
+            <ul class="notes" id="notes"></ul>
+          </details>
+          <details>
+            <summary>Shopping &amp; placement list</summary>
+            <table class="shop" id="shop"></table>
+          </details>
+          <details>
+            <summary>Inspiration notes</summary>
+            <ul class="notes" id="inspo"></ul>
+          </details>
+          <div class="row">
+            <button class="btn" id="exportPng">⬇ Save image</button>
+            <button class="btn" id="exportJson">⬇ Save project</button>
+            <label class="btn">⬆ Open project<input type="file" id="importJson" accept="application/json" hidden /></label>
+          </div>
+        </div>
+        <div class="row"><button class="btn" id="backTo2">← Back</button></div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
