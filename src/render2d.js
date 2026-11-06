@@ -1,5 +1,5 @@
 // Top-down rendering of the room and a design onto a 2D canvas.
-import { STYLES } from './catalog.js';
+import { STYLES, surfaces } from './catalog.js';
 import { walls as wallsOf, add, mul, rng } from './geometry.js';
 
 const WALL_T = 0.12;
@@ -299,12 +299,39 @@ export function drawFloor(ctx, poly, S) {
   ctx.closePath();
   ctx.fillStyle = S.floor; ctx.fill();
   ctx.save(); ctx.clip();
-  ctx.strokeStyle = S.floorLine; ctx.lineWidth = 0.008;
   const b = poly.reduce((a, p) => ({ x0: Math.min(a.x0, p.x), y0: Math.min(a.y0, p.y), x1: Math.max(a.x1, p.x), y1: Math.max(a.y1, p.y) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
-  let row = 0;
-  for (let y = b.y0; y < b.y1; y += 0.18, row++) {
-    ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke();
-    for (let x = b.x0 + (row % 3) * 0.4; x < b.x1; x += 1.2) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 0.18); ctx.stroke(); }
+  const type = S.floorType || 'wood';
+  if (type === 'carpet') {
+    // soft speckled pile
+    const r = rng(7);
+    ctx.fillStyle = S.floorLine;
+    for (let x = b.x0; x < b.x1; x += 0.05) for (let y = b.y0; y < b.y1; y += 0.05) {
+      if (r() < 0.35) { ctx.globalAlpha = 0.25 + r() * 0.35; ctx.fillRect(x + r() * 0.04, y + r() * 0.04, 0.012, 0.012); }
+    }
+    ctx.globalAlpha = 1;
+  } else if (type === 'tile') {
+    ctx.strokeStyle = S.floorLine; ctx.lineWidth = 0.012;
+    ctx.beginPath();
+    for (let x = b.x0; x < b.x1; x += 0.6) { ctx.moveTo(x, b.y0); ctx.lineTo(x, b.y1); }
+    for (let y = b.y0; y < b.y1; y += 0.6) { ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); }
+    ctx.stroke();
+  } else if (type === 'concrete') {
+    const r = rng(3);
+    for (let k = 0; k < 40; k++) {
+      ctx.fillStyle = S.floorLine; ctx.globalAlpha = 0.08 + r() * 0.1;
+      ctx.beginPath(); ctx.arc(b.x0 + r() * (b.x1 - b.x0), b.y0 + r() * (b.y1 - b.y0), 0.2 + r() * 0.5, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = S.floorLine; ctx.lineWidth = 0.01; ctx.beginPath();
+    for (let x = b.x0 + 1.5; x < b.x1; x += 1.5) { ctx.moveTo(x, b.y0); ctx.lineTo(x, b.y1); }
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = S.floorLine; ctx.lineWidth = 0.008;
+    let row = 0;
+    for (let y = b.y0; y < b.y1; y += 0.18, row++) {
+      ctx.beginPath(); ctx.moveTo(b.x0, y); ctx.lineTo(b.x1, y); ctx.stroke();
+      for (let x = b.x0 + (row % 3) * 0.4; x < b.x1; x += 1.2) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 0.18); ctx.stroke(); }
+    }
   }
   ctx.restore();
 }
@@ -397,7 +424,7 @@ export function drawDimensions(ctx, poly, view, opts = {}) {
 }
 
 export function drawDesign(ctx, room, design, opts = {}) {
-  const S = STYLES[design?.style] || STYLES.scandinavian;
+  const S = surfaces(STYLES[design?.style] || STYLES.scandinavian, room);
   const poly = room.points;
   drawFloor(ctx, poly, S);
   if (design) {

@@ -2,7 +2,7 @@ import {
   v, add, sub, mul, dot, dist, norm, walls as wallsOf, orientInward, closestPointOnSegment,
   area, selfIntersects, boxCorners, pointInPolygon, clamp,
 } from './geometry.js';
-import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION } from './catalog.js';
+import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces } from './catalog.js';
 import { generateDesigns } from './designer.js';
 import { drawDesign, drawWalls, drawDimensions, drawFloor, makeView } from './render2d.js';
 import { PRESETS, rectRoom } from './presets.js';
@@ -166,7 +166,7 @@ function render() {
   const S = STYLES[state.style] || STYLES.scandinavian;
   const room = state.room;
   const design = state.step === 3 ? state.designs[state.designIdx] : null;
-  const neutral = { ...S, floor: '#ece7df', floorLine: '#e2dcd2' };
+  const neutral = state.room.floor && state.room.floor.type !== 'style' ? surfaces(S, state.room) : { ...S, floor: '#ece7df', floorLine: '#e2dcd2', floorType: 'wood' };
 
   if (!state.closed) {
     const pts = state.draft;
@@ -726,7 +726,39 @@ function renderOpenings(valuesOnly = false) {
   }
 }
 
+function renderSurfaces() {
+  const fl = state.room.floor || { type: 'style' };
+  const box = $('#floorTypes');
+  box.innerHTML = '';
+  for (const [k, f] of Object.entries(FLOORS)) {
+    const b = document.createElement('button');
+    b.textContent = f.name;
+    b.classList.toggle('active', fl.type === k);
+    b.addEventListener('click', () => {
+      state.room.floor = k === 'style' ? { type: 'style' } : { type: k, color: FLOORS[k].color };
+      surfacesChanged();
+    });
+    box.appendChild(b);
+  }
+  $('#floorColorWrap').hidden = fl.type === 'style';
+  if (fl.type !== 'style') $('#floorColor').value = fl.color || FLOORS[fl.type].color;
+  const S = STYLES[state.style] || STYLES.scandinavian;
+  $('#wallColor').value = state.room.wallColor || S.wall;
+  $('#wallStyle').checked = !state.room.wallColor;
+}
+
+let surfaceTimer = null;
+function surfacesChanged(rerun = true) {
+  renderSurfaces();
+  save();
+  render();
+  clearTimeout(surfaceTimer);
+  // Rugs depend on the floor, so re-run the designer; colour-only tweaks just repaint.
+  surfaceTimer = setTimeout(() => { if (rerun && state.designs.length) runDesign(false); else { renderResults(); update3D(); } }, 150);
+}
+
 function renderDesignControls() {
+  renderSurfaces();
   const rt = $('#roomTypes');
   rt.innerHTML = '';
   for (const [k, r] of Object.entries(ROOM_TYPES)) {
@@ -747,6 +779,7 @@ function renderDesignControls() {
     b.addEventListener('click', () => {
       state.style = k;
       renderDesignControls();
+      renderSurfaces();
       save();
       if (state.designs.length) runDesign(false);
     });
@@ -904,6 +937,13 @@ $('#backTo1').addEventListener('click', () => goStep(1));
 $('#backTo2').addEventListener('click', () => goStep(2));
 $$('.tool').forEach((b) => b.addEventListener('click', () => setTool(state.tool === b.dataset.tool ? null : b.dataset.tool)));
 $('#generate').addEventListener('click', () => runDesign(true));
+$('#floorColor').addEventListener('input', (e) => { if (state.room.floor) { state.room.floor.color = e.target.value; surfacesChanged(false); } });
+$('#wallColor').addEventListener('input', (e) => { state.room.wallColor = e.target.value; surfacesChanged(false); });
+$('#wallStyle').addEventListener('change', (e) => {
+  if (e.target.checked) delete state.room.wallColor;
+  else state.room.wallColor = $('#wallColor').value;
+  surfacesChanged(false);
+});
 $('#keepToggle').addEventListener('change', (e) => { state.keep = e.target.checked; save(); if (state.designs.length) runDesign(false); });
 $$('#viewTabs button').forEach((b) => b.addEventListener('click', () => setView3D(b.dataset.view === '3d')));
 $('#zoomIn').addEventListener('click', () => zoomAt(v(canvas.clientWidth / 2, canvas.clientHeight / 2), 1.25));

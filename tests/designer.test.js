@@ -47,3 +47,16 @@ test('naeem keep-furniture', () => {
   console.log('naeem', d.rating, d.metrics, d.items.map((i) => i.type).join(','), '|', d.wallItems.filter((w) => !w.fixed).map((w) => w.type).join(','));
   console.log(d.notes.join('\n'));
 });
+
+test('carpet: no rug in bedroom, flat-weave in living room', () => {
+  const base = rooms.rect;
+  const carpet = { ...base, floor: { type: 'carpet', color: '#b9ad9a' } };
+  const bed = generateDesigns(carpet, { roomType: 'bedroom', style: 'boho', iterations: 10 })[0];
+  assert.ok(!bed.items.some((i) => i.type === 'rug'));
+  assert.ok(bed.notes.some((n) => n.startsWith('Carpeted floor')));
+  const liv = generateDesigns(carpet, { roomType: 'living', style: 'boho', iterations: 10 })[0];
+  const rug = liv.items.find((i) => i.type === 'rug');
+  assert.ok(!rug || (rug.w <= 2.0 && rug.d <= 1.4));
+  const naeem = generateDesigns(naeemBedroom(), { roomType: 'bedroom', style: 'scandinavian', keep: true, iterations: 10 })[0];
+  assert.ok(!naeem.items.some((i) => i.type === 'rug'));
+});

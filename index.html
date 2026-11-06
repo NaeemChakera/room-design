@@ -122,6 +122,15 @@
       <div class="step-panel" data-panel="3" hidden>
         <h2>Design</h2>
         <div class="card">
+          <label class="lbl">Your floor &amp; walls</label>
+          <div class="chips" id="floorTypes"></div>
+          <div class="row surface-row">
+            <label class="small" id="floorColorWrap">Floor color <input type="color" id="floorColor" /></label>
+            <label class="small">Walls <input type="color" id="wallColor" /></label>
+            <label class="small"><input type="checkbox" id="wallStyle" /> Use style's wall color</label>
+          </div>
+        </div>
+        <div class="card">
           <label class="lbl">Room type</label>
           <div class="chips" id="roomTypes"></div>
           <div id="keepWrap" hidden>

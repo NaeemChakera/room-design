@@ -58,6 +58,8 @@ export function naeemBedroom() {
     measuredNote: '1 hand span ≈ 9" (not yet checked against a ruler). Rescale after tape-measuring the desk and projector walls.',
     points: [P(0, 0), P(144, 0), P(144, 162), P(70, 162), P(70, 144), P(0, 144)],
     height: 96 * IN,
+    floor: { type: 'carpet', color: '#b5a893' },
+    wallColor: '#ece6d6',
     openings: [
       { id: 'door', type: 'door', wall: 0, t: 122.5 * IN, width: 32 * IN, hinge: 'right' },
       { id: 'window', type: 'window', wall: 2, t: 37 * IN, width: 66 * IN, sill: 34 * IN, height: 47 * IN },

@@ -146,3 +146,32 @@ export function itemSpec(type) {
   if (!s) throw new Error(`Unknown item type ${type}`);
   return s;
 }
+
+// Existing floor finishes the user can choose. `color` is the default swatch.
+export const FLOORS = {
+  style: { name: 'Style default' },
+  carpet: { name: 'Carpet', color: '#b9ad9a' },
+  hardwood: { name: 'Hardwood', color: '#a9744a' },
+  lightwood: { name: 'Light wood / laminate', color: '#dcc7a3' },
+  tile: { name: 'Tile', color: '#d8d4cc' },
+  concrete: { name: 'Concrete', color: '#b4b1ab' },
+};
+
+function shadeHex(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c) => Math.max(0, Math.min(255, Math.round(amt < 0 ? c * (1 + amt) : c + (255 - c) * amt)));
+  return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => f(c).toString(16).padStart(2, '0')).join('');
+}
+
+/** Style palette with the room's own floor and wall finishes applied. */
+export function surfaces(S, room) {
+  const fl = room?.floor;
+  const out = { ...S, floorType: 'wood' };
+  if (fl && fl.type && fl.type !== 'style') {
+    out.floorType = fl.type;
+    out.floor = fl.color || FLOORS[fl.type].color;
+    out.floorLine = shadeHex(out.floor, fl.type === 'carpet' ? -0.06 : -0.12);
+  }
+  if (room?.wallColor) out.wall = room.wallColor;
+  return out;
+}

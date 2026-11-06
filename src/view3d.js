@@ -1,7 +1,7 @@
 // 3D "dollhouse" view of a design using three.js.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { STYLES } from './catalog.js';
+import { STYLES, surfaces } from './catalog.js';
 import { walls as wallsOf, centroid, interiorAngle, polygonBounds, rng, add, mul } from './geometry.js';
 import { openingZ } from './designer.js';
 
@@ -94,17 +94,37 @@ function floorTexture(S) {
   const g = c.getContext('2d');
   g.fillStyle = S.floor; g.fillRect(0, 0, 512, 512);
   const r = rng(11);
-  for (let y = 0; y < 512; y += 46) {
-    const off = Math.floor(r() * 300);
-    for (let x = -off; x < 512; x += 300) {
-      g.fillStyle = `rgba(0,0,0,${0.02 + r() * 0.05})`;
-      g.fillRect(x, y, 300, 46);
-      g.strokeStyle = S.floorLine; g.lineWidth = 2; g.strokeRect(x, y, 300, 46);
+  const type = S.floorType || 'wood';
+  let repeat = 0.45;
+  if (type === 'carpet') {
+    for (let i = 0; i < 26000; i++) {
+      g.fillStyle = r() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.06)';
+      g.fillRect(r() * 512, r() * 512, 2, 2);
+    }
+    repeat = 1.5;
+  } else if (type === 'tile') {
+    g.strokeStyle = S.floorLine; g.lineWidth = 4;
+    for (let k = 0; k <= 512; k += 128) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, 512); g.moveTo(0, k); g.lineTo(512, k); g.stroke(); }
+    repeat = 0.42; // 4 tiles of 60 cm per texture
+  } else if (type === 'concrete') {
+    for (let i = 0; i < 60; i++) {
+      g.fillStyle = `rgba(0,0,0,${0.02 + r() * 0.04})`;
+      g.beginPath(); g.arc(r() * 512, r() * 512, 20 + r() * 80, 0, 7); g.fill();
+    }
+    repeat = 0.3;
+  } else {
+    for (let y = 0; y < 512; y += 46) {
+      const off = Math.floor(r() * 300);
+      for (let x = -off; x < 512; x += 300) {
+        g.fillStyle = `rgba(0,0,0,${0.02 + r() * 0.05})`;
+        g.fillRect(x, y, 300, 46);
+        g.strokeStyle = S.floorLine; g.lineWidth = 2; g.strokeRect(x, y, 300, 46);
+      }
     }
   }
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.repeat.set(0.45, 0.45);
+  t.repeat.set(repeat, repeat);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
@@ -474,7 +494,7 @@ export class View3D {
   }
 
   setScene(room, design) {
-    const S = STYLES[design?.style] || STYLES.scandinavian;
+    const S = surfaces(STYLES[design?.style] || STYLES.scandinavian, room);
     this.scene.remove(this.root);
     this.root.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
     this.root = new THREE.Group();
@@ -488,7 +508,7 @@ export class View3D {
     const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)));
     const floorGeo = new THREE.ShapeGeometry(shape);
     floorGeo.rotateX(Math.PI / 2); // (x, y) -> (x, 0, y)
-    const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ map: floorTexture(S), roughness: 0.7, side: THREE.DoubleSide }));
+    const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ map: floorTexture(S), roughness: S.floorType === 'carpet' ? 1 : S.floorType === 'tile' ? 0.35 : 0.7, side: THREE.DoubleSide }));
     floor.receiveShadow = true;
     this.root.add(floor);
 

@@ -455,7 +455,18 @@ class Layout {
     return lamp;
   }
 
-  placeRug(cx, cy, w, d, theta, label) {
+  placeRug(cx, cy, w, d, theta, label, { onCarpet = 'skip' } = {}) {
+    const floor = this.room.floor?.type;
+    if (floor === 'carpet') {
+      if (onCarpet === 'skip') {
+        if (!this.notes.some((n) => n.startsWith('Carpeted floor'))) this.note('Carpeted floor, so no big rug: it would bunch up and add little. Texture comes from throws, cushions and plants instead.');
+        return null;
+      }
+      // Living rooms: a low-pile flat-weave rug still marks out the seating area.
+      w = Math.min(w, 2.0); d = Math.min(d, 1.4);
+      label = `${label} (low-pile flat-weave so it lies flat on the carpet)`;
+    }
+    if (floor === 'tile' || floor === 'concrete') label += ', warming up the hard floor';
     // Shrink the rug until it fits, keeping ~25 cm of floor visible to walls.
     for (let k = 0; k < 8; k++) {
       const box = { x: cx, y: cy, w: w - k * 0.2, d: d - k * 0.15, theta };
@@ -681,7 +692,7 @@ function livingRoom(L) {
   const rugW = sofa.w + 0.4;
   const rugD = Math.min(2.4, Math.max(1.4, D - 0.6));
   const rc = add(centerOf(sofa), mul(f, sofa.d / 2 - 0.25 + rugD / 2));
-  L.placeRug(rc.x, rc.y, rugW, rugD, sofa.theta, 'anchors the seating, front legs of the sofa on it');
+  L.placeRug(rc.x, rc.y, rugW, rugD, sofa.theta, 'anchors the seating, front legs of the sofa on it', { onCarpet: 'layer' });
 
   // Side table on one end, lamp on the other end
   const sides = L.rand() < 0.5 ? [1, -1] : [-1, 1];
