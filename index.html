@@ -7,12 +7,12 @@
   <meta name="description" content="Trace your room into a floor plan, then auto-design it with furniture, frames, shelves, plants and lamps." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='3' width='26' height='26' rx='6' fill='%232d6cdf'/><path d='M9 23V12l7-4 7 4v11z' fill='white'/></svg>" />
   <link rel="stylesheet" href="./src/styles.css" />
-  <!-- Lets the unbuilt source run straight from GitHub Pages "Deploy from a branch"; Vite bundles three itself. -->
+  <!-- Lets the unbuilt source run straight from GitHub Pages "Deploy from a branch" (three.js 0.170 copied into vendor/); Vite bundles three itself. -->
   <script type="importmap">
     {
       "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        "three": "./vendor/three.module.min.js",
+        "three/examples/jsm/controls/OrbitControls.js": "./vendor/OrbitControls.js"
       }
     }
   </script>

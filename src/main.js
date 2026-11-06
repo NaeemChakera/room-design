@@ -818,11 +818,24 @@ let v3d = null;
 async function update3D() {
   if (!state.view3d) return;
   const d = state.designs[state.designIdx];
-  if (!v3d) {
-    const { View3D } = await import('./view3d.js');
-    v3d = new View3D($('#view3d'));
+  const box = $('#view3d');
+  try {
+    if (!v3d) {
+      const probe = document.createElement('canvas');
+      if (!(probe.getContext('webgl2') || probe.getContext('webgl'))) {
+        throw new Error('This browser has WebGL turned off or unavailable, so the 3D view can\'t run. Try another browser, or enable hardware acceleration in your browser settings.');
+      }
+      box.querySelector('.err3d')?.remove();
+      const { View3D } = await import('./view3d.js');
+      v3d = new View3D(box);
+    }
+    v3d.setScene(state.room, d);
+  } catch (err) {
+    console.error(err);
+    v3d?.dispose?.();
+    v3d = null;
+    box.innerHTML = `<div class="err3d"><b>3D view couldn't load</b><p>${String(err?.message || err).replace(/</g, '&lt;')}</p><p class="small">The floor plan still works. Reload the page to try again.</p></div>`;
   }
-  v3d.setScene(state.room, d);
 }
 
 function setView3D(on) {
