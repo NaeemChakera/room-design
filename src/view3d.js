@@ -580,7 +580,39 @@ export class View3D {
       stub.position.set(c.x, 0.06, c.y); stub.rotation.y = -theta; stub.visible = false;
       this.root.add(stub); group.stub = stub;
       // door leaves
-      for (const o of mine.filter((x) => x.type === 'door')) {
+      // open doorways: casing trim + a recess behind (with clothes if it's a closet)
+      for (const o of mine.filter((x) => x.type === 'door' && x.swing === 'none')) {
+        const c = add(w.a, mul(w.dir, o.t));
+        const g = new THREE.Group();
+        const trim = mat('#f5f3ee');
+        const ow = o.width, oh = openingZ(o)[1];
+        g.add(box(0.06, oh, 0.02, trim, -ow / 2 - 0.03, 0, 0.01));
+        g.add(box(0.06, oh, 0.02, trim, ow / 2 + 0.03, 0, 0.01));
+        g.add(box(ow + 0.12, 0.06, 0.02, trim, 0, oh, 0.01));
+        const depth = 0.6;
+        const recess = mat('#5a554e', { roughness: 1 });
+        g.add(box(ow + 0.02, oh, 0.02, recess, 0, 0, -WALL_T - depth)); // back
+        g.add(box(0.02, oh, depth, recess, -ow / 2 - 0.01, 0, -WALL_T - depth / 2));
+        g.add(box(0.02, oh, depth, recess, ow / 2 + 0.01, 0, -WALL_T - depth / 2));
+        g.add(box(ow + 0.02, 0.02, depth, recess, 0, oh - 0.02, -WALL_T - depth / 2));
+        if (/closet/i.test(o.label || '')) {
+          const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, ow - 0.04, 10), mat('#9a9a9a', { metalness: 0.6 }));
+          rod.rotation.z = Math.PI / 2;
+          rod.position.set(0, 1.78, -WALL_T - depth / 2);
+          g.add(rod);
+          const cols = ['#6b3f2a', '#2f4b6b', '#7a7a72', '#a44', '#3d5a3a', '#c9b38f', '#333'];
+          const r = rng(o.wall * 13 + 5);
+          for (let x = -ow / 2 + 0.06; x < ow / 2 - 0.05; x += 0.07) {
+            const hgt = 0.6 + r() * 0.35;
+            g.add(box(0.05, hgt, 0.4, mat(cols[Math.floor(r() * cols.length)], { roughness: 1 }), x, 1.75 - hgt, -WALL_T - depth / 2));
+          }
+        }
+        g.position.set(c.x, 0, c.y);
+        g.rotation.y = -theta;
+        this.root.add(g);
+        group.meshes.push(g);
+      }
+      for (const o of mine.filter((x) => x.type === 'door' && x.swing !== 'none')) {
         const hingeT = o.hinge === 'right' ? o.t + o.width / 2 : o.t - o.width / 2;
         const hp = add(w.a, mul(w.dir, hingeT));
         const leaf = new THREE.Group();
