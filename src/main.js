@@ -82,6 +82,8 @@ function load() {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return false;
     const s = JSON.parse(raw);
+    // Hanging plants were retired (they could look like they hung off a light); strip them from saved layouts.
+    for (const d of s.designs || []) d.topItems = (d.topItems || []).filter((t) => t.type !== 'plantHanging');
     Object.assign(state, s);
     if (s.photo) loadPhoto(s.photo.src, s.photo);
     return true;

@@ -137,3 +137,15 @@ test('bedroom presets: two bedside cabinets, desk + laptop, no surprise bench, l
   const withBench = generateDesigns(PRESETS.bed_primary.make(), { roomType: 'bedroom', style: 'scandinavian', iterations: 20, include: ['nightstands', 'bench'] })[0];
   assert.equal(withBench.items.filter((i) => i.type === 'bench').length, 1, 'bench when chosen');
 });
+
+test('no ceiling-hung plants', () => {
+  for (const rt of ['living', 'bedroom', 'office', 'dining']) {
+    for (const style of ['boho', 'afrohemian', 'scandinavian']) {
+      for (const d of generateDesigns(rooms.L, { roomType: rt, style, iterations: 10 })) {
+        assert.ok(!d.topItems.some((t) => t.type === 'plantHanging'), `${rt}/${style}`);
+      }
+    }
+  }
+  const ex = generateDesigns(naeemBedroom(), { roomType: 'bedroom', style: 'boho', keep: true, iterations: 10 })[0];
+  assert.ok(!ex.topItems.some((t) => t.type === 'plantHanging'));
+});

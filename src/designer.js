@@ -592,18 +592,6 @@ class Layout {
     this.note(`Pendant light ${label}.`);
   }
 
-  /** Hanging plant near a window: layering greenery at ceiling height. */
-  hangingPlant() {
-    if (!this.want('plants')) return;
-    const w = this.windows.slice().sort((a, b) => b.width - a.width)[0];
-    if (!w) return;
-    const t = w.t + (w.width / 2 - 0.25) * (this.rand() < 0.5 ? -1 : 1);
-    const p = add(add(w.wallObj.a, mul(w.wallObj.dir, t)), mul(w.wallObj.n, 0.35));
-    if (this.items.some((it) => (it.type === 'bed' || it.type === 'singleBed') && distPointBox(p, it) < 0.3)) return;
-    this.topItems.push({ id: this.nextId++, type: 'plantHanging', name: 'Hanging plant', x: p.x, y: p.y, z: (this.room.height || 2.5) - 0.9, ceiling: true });
-    this.note('Hanging plant in front of the window — greenery at a third height level.');
-  }
-
   // ---- final evaluation ----------------------------------------------------
 
   evaluate() {
@@ -863,7 +851,6 @@ function livingRoom(L) {
 
   L.pendant(coffee ? centerOf(coffee) : L.center, 'centred over the seating area');
   L.placePlants(Math.round(clamp(L.area / 7, 1, 4) * L.style.plants));
-  if (L.style.plants >= 1 && L.rand() < 0.7) L.hangingPlant();
   if (L.area > 16) L.placeFloorLamp(null);
 }
 
@@ -1026,7 +1013,6 @@ function bedroom(L) {
   }
   L.pendant(L.center, 'in the centre of the ceiling');
   L.placePlants(Math.round(clamp(L.area / 8, 1, 3) * L.style.plants));
-  if (L.style.plants >= 1.2 && L.rand() < 0.6) L.hangingPlant();
 }
 
 /** A desk against a wall: daylight from the side, door not behind you. */
@@ -1316,7 +1302,6 @@ function keepFurniture(L) {
     if (sh.length) L.note(`${sh.length === 2 ? 'Two staggered floating shelves' : 'A floating shelf'} with a trailing plant on the free stretch of the ${L.wallLabel(spot.wall)}.`);
   }
   L.placePlants(Math.max(1, Math.round(clamp(L.area / 7, 1, 3) * L.style.plants)));
-  if (L.windows.length) L.hangingPlant();
   for (const tip of room.tips || []) L.note(tip);
 }
 
