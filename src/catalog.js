@@ -201,3 +201,98 @@ export const INCLUDE_OPTIONS = [
 export function defaultInclude(roomKey) {
   return INCLUDE_OPTIONS.filter((o) => o.on.includes(roomKey)).map((o) => o.key);
 }
+
+// Per-piece style choices shown in the selection toolbar.
+// `key` is the field on the item; each option is [value, label, search words for shopping].
+const PLANT_SPECIES = [
+  ['leafy', 'Rubber plant', 'rubber plant'],
+  ['monstera', 'Monstera', 'monstera plant'],
+  ['snake', 'Snake plant', 'snake plant'],
+  ['palm', 'Palm', 'indoor palm plant'],
+  ['olive', 'Olive tree', 'indoor olive tree'],
+  ['fiddle', 'Fiddle-leaf fig', 'fiddle leaf fig'],
+];
+const MIRROR_SHAPES = [
+  ['round', 'Round', 'round wall mirror'],
+  ['arched', 'Arched', 'arched wall mirror'],
+  ['rect', 'Rectangle', 'rectangular wall mirror'],
+  ['oval', 'Oval', 'oval wall mirror'],
+  ['sunburst', 'Sunburst', 'sunburst mirror'],
+];
+export const FRAME_FINISHES = [
+  ['#232323', 'Black'], ['#6e4a2f', 'Walnut'], ['#c9a477', 'Natural oak'], ['#f2efe9', 'White'], ['#b8964f', 'Brass'],
+];
+export const VARIANTS = {
+  frame: {
+    label: 'Art', key: 'artKind', color: 'art', colorLabel: 'Art colour', finish: true, mat: true,
+    options: [
+      ['abstract', 'Abstract shapes', 'abstract art print'],
+      ['arches', 'Sun & arches', 'boho sun arch art print'],
+      ['botanical', 'Botanical', 'botanical print'],
+      ['landscape', 'Landscape', 'landscape art print'],
+      ['line', 'Line drawing', 'line art print'],
+      ['geometric', 'Geometric', 'geometric art print'],
+      ['photo', 'B&W photo', 'black and white photography print'],
+    ],
+  },
+  rug: {
+    label: 'Pattern', key: 'pattern', color: 'rugColor', colorLabel: 'Main', color2: 'rugAccent', color2Label: 'Accent',
+    options: [
+      ['solid', 'Solid', 'solid area rug'],
+      ['stripes', 'Striped', 'striped rug'],
+      ['border', 'Bordered', 'bordered rug'],
+      ['diagonal', 'Diagonal', 'diagonal stripe rug'],
+      ['trellis', 'Moroccan trellis', 'moroccan trellis rug'],
+      ['medallion', 'Persian medallion', 'persian medallion rug'],
+      ['checker', 'Checkerboard', 'checkerboard rug'],
+      ['round', 'Round', 'round rug'],
+    ],
+  },
+  mirror: { label: 'Shape', key: 'mirrorShape', finish: true, options: MIRROR_SHAPES },
+  floorMirror: {
+    label: 'Shape', key: 'mirrorShape', finish: true,
+    options: [['rect', 'Rectangle', 'full length mirror'], ['arched', 'Arched', 'arched full length mirror'], ['oval', 'Oval', 'oval full length mirror']],
+  },
+  plantLarge: { label: 'Plant', key: 'species', options: PLANT_SPECIES },
+  plantMedium: { label: 'Plant', key: 'species', options: PLANT_SPECIES },
+  floorLamp: {
+    label: 'Shade', key: 'shade',
+    options: [['drum', 'Drum', 'drum shade floor lamp'], ['globe', 'Globe', 'globe floor lamp'], ['cone', 'Cone', 'cone shade floor lamp'], ['tripod', 'Tripod', 'tripod floor lamp']],
+  },
+  sofa: { color: 'color', colorLabel: 'Fabric' },
+  loveseat: { color: 'color', colorLabel: 'Fabric' },
+  armchair: { color: 'color', colorLabel: 'Fabric' },
+  bed: { color: 'color', colorLabel: 'Bedding' },
+  singleBed: { color: 'color', colorLabel: 'Bedding' },
+  bench: { color: 'color', colorLabel: 'Cushion' },
+  chair: { color: 'color', colorLabel: 'Seat' },
+};
+
+/** Value of a variant field, with defaults for older/generated items. */
+export function variantValue(item) {
+  const v = VARIANTS[item.type];
+  if (!v?.key) return null;
+  if (v.key === 'pattern' && typeof item.pattern === 'number') return ['stripes', 'diagonal', 'border'][item.pattern] || 'border';
+  if (item[v.key] != null) return item[v.key];
+  if (v.key === 'mirrorShape') return item.round ? 'round' : 'rect';
+  if (v.key === 'pattern') return 'border';
+  if (v.key === 'species') return 'leafy';
+  if (v.key === 'shade') return 'drum';
+  return v.options[0][0];
+}
+
+/** Shopping search words for the chosen variant (or null). */
+export function variantSearch(item) {
+  const v = VARIANTS[item.type];
+  if (!v?.key) return null;
+  const val = variantValue(item);
+  return v.options.find((o) => o[0] === val)?.[2] || null;
+}
+
+/** Human label of the chosen variant, e.g. "Persian medallion". */
+export function variantLabel(item) {
+  const v = VARIANTS[item.type];
+  if (!v?.key) return null;
+  const val = variantValue(item);
+  return v.options.find((o) => o[0] === val)?.[1] || null;
+}

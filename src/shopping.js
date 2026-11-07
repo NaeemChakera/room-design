@@ -1,3 +1,4 @@
+import { variantSearch, variantLabel } from './catalog.js';
 // Shopping helpers: what to buy, rough prices new vs secondhand, and search links.
 // Prices are rough US ranges (USD) to help budget, not quotes.
 
@@ -46,13 +47,16 @@ export const SHOP = {
 export function searchQuery(item, styleName) {
   const s = SHOP[item.type];
   if (!s) return item.name;
+  const vs = variantSearch(item);
   const style = (styleName || '').replace(/\s*\(.*\)/, '').toLowerCase();
-  if (item.type === 'frame' && item.width) return `${inch(item.width)}x${inch(item.height)} picture frame ${item.finishName || ''}`.trim();
+  if (item.type === 'frame' && item.width) return `${inch(item.width)}x${inch(item.height)} ${vs ? vs.replace(' print', '') + ' framed print' : 'picture frame'} ${item.finishName || ''}`.trim();
   if (item.type === 'shelf' && item.width) return item.ledge ? `${inch(item.width)} inch picture ledge shelf` : `${inch(item.width)} inch floating shelf`;
-  if (item.type === 'mirror' && item.round) return `${inch(item.width)} inch round mirror`;
+  if ((item.type === 'mirror' || item.type === 'floorMirror') && vs) return `${inch(item.width)} inch ${vs}`;
   if (item.type === 'floorMirror' && item.width) return `${inch(item.width)}x${inch(item.height)} full length wall mirror`;
   if (item.type === 'bed') return `${style} ${/queen/i.test(item.name || '') ? 'queen' : 'full'} bed frame`.trim();
-  if (item.type === 'rug' && item.w) return `${Math.round(item.w / 0.3048)}x${Math.round(item.d / 0.3048)} ${style} rug`.trim();
+  if (item.type === 'rug' && item.w) return `${Math.round(item.w / 0.3048)}x${Math.round(item.d / 0.3048)} ${vs || `${style} rug`}`.trim();
+  if ((item.type === 'plantLarge' || item.type === 'plantMedium') && vs) return vs;
+  if (item.type === 'floorLamp' && vs) return vs;
   return `${style} ${s.q}`.trim();
 }
 
@@ -97,12 +101,14 @@ export function shoppingList(design, { styleName, finishNames = {} } = {}) {
   for (const it of design.items) {
     if (it.fixed || it.parent && it.type === 'deskChair' && it.fixed) continue;
     const size = it.flat ? `${inch(it.w)}×${inch(it.d)}"` : `${inch(it.w)}"W × ${inch(it.d)}"D${it.h ? ` × ${inch(it.h)}"H` : ''}`;
-    push(it, it.type, it.name, size);
+    const vl = variantLabel(it);
+    push(it, it.type, vl && !it.name.includes(vl) ? `${it.name} — ${vl}` : it.name, size);
   }
   for (const w of design.wallItems) {
     if (w.fixed || w.owned) continue;
     const t = w.type === 'shelf' && w.ledge ? 'shelf' : w.type;
-    const name = w.type === 'frame' ? `Frame ${inch(w.width)}×${inch(w.height)}" (${w.finishName || 'any'})` : w.ledge ? `Picture ledge ${inch(w.width)}"` : w.name;
+    const wl = variantLabel(w);
+    const name = w.type === 'frame' ? `${wl ? `${wl} print` : 'Frame'} ${inch(w.width)}×${inch(w.height)}" (${w.finishName || 'any'} frame)` : w.ledge ? `Picture ledge ${inch(w.width)}"` : wl ? `${w.name} — ${wl}` : w.name;
     const size = w.type === 'shelf' ? `${inch(w.width)}" wide` : w.round ? `${inch(w.width)}" across` : `${inch(w.width)}×${inch(w.height)}"`;
     push({ ...w, finishName: w.finishName }, t, name, size);
   }

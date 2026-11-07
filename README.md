@@ -39,6 +39,16 @@ In the Design step, click any piece on the floor plan to select it:
 - Frames, shelves and mirrors slide along their wall, and a whole gallery moves as a group.
 - Keys: arrow keys to nudge (Shift for bigger steps), R to rotate, Del to delete, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z to redo, Esc to deselect.
 
+**Style options:** a selected piece also gets a Style row:
+- **Art:** seven subjects (abstract, sun & arches, botanical, landscape, line drawing, geometric, black-and-white photo), the art colour, the frame finish and a white mat.
+- **Rugs:** eight patterns (solid, striped, bordered, diagonal, Moroccan trellis, Persian medallion, checkerboard, round), with a main and an accent colour.
+- **Mirrors:** round, arched, rectangle, oval or sunburst, plus the frame finish.
+- **Plants:** rubber plant, monstera, snake plant, palm, olive tree or fiddle-leaf fig.
+- **Floor lamps:** drum, globe, cone or tripod.
+- **Sofas, armchairs, beds, benches and chairs:** a fabric colour.
+
+"Apply to all" copies the look to every piece of that kind. The shopping links search for exactly what you picked (for example "persian medallion rug" or "botanical framed print").
+
 **Add furniture & decor** drops common pieces, wall decor or a custom-size piece into the room. Pieces you add count as yours (left off the shopping list) unless you untick "I own this". After every edit the walkway, lighting and feng shui scores update, and your edits are saved in the browser.
 
 ### Feng shui, shopping and frames

@@ -4,6 +4,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STYLES, surfaces } from './catalog.js';
 import { walls as wallsOf, centroid, interiorAngle, polygonBounds, rng, add, mul } from './geometry.js';
 import { openingZ } from './designer.js';
+import { paintRug, paintArt, rugKey } from './patterns.js';
+import { variantValue } from './catalog.js';
 
 const WALL_T = 0.12;
 
@@ -37,52 +39,83 @@ function legs(g, w, d, h, material, inset = 0.05, r = 0.02) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) g.add(cyl(r, r * 0.8, h, material, sx * (w / 2 - inset), 0, sz * (d / 2 - inset), 8));
 }
 
-function plant(g, scale, S, seed, potY = 0) {
+function plant(g, scale, S, seed, potY = 0, species = 'leafy') {
   const r = rng(seed * 31 + 7);
   const potH = 0.35 * scale, potR = 0.17 * scale;
   g.add(cyl(potR, potR * 0.8, potH, mat(S.accent === '#2d6cdf' ? '#e9e7e3' : S.woodDark), 0, potY, 0));
+  const top = potY + potH;
   const greens = ['#4f7a45', '#5f8f4e', '#3f6a3a', '#76a35d'];
-  const n = 7 + Math.floor(r() * 5);
-  for (let i = 0; i < n; i++) {
-    const a = r() * Math.PI * 2;
-    const rad = (0.08 + r() * 0.14) * scale;
-    const y = potY + potH + (0.15 + r() * 0.9) * scale;
-    const s = sphere((0.13 + r() * 0.1) * scale, mat(greens[i % 4], { roughness: 0.9 }), Math.cos(a) * rad, y, Math.sin(a) * rad);
-    s.scale.set(1, 0.7 + r() * 0.6, 1);
-    g.add(s);
+  const stem = (h, rad = 0.012) => g.add(cyl(rad * scale, rad * 1.25 * scale, h * scale, mat('#5b4632'), 0, top, 0, 6));
+  const flatLeaf = (x, y, z, sx, sy, color, rx, ry) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), mat(color, { roughness: 0.85 }));
+    m.scale.set(sx, sy, sx * 0.22);
+    m.position.set(x, y, z); m.rotation.set(rx, ry, 0);
+    m.castShadow = true; g.add(m);
+  };
+  if (species === 'snake') {
+    for (let i = 0; i < 9; i++) {
+      const a = r() * Math.PI * 2, h = (0.45 + r() * 0.55) * scale;
+      const b = box(0.05 * scale, h, 0.012 * scale, mat(i % 2 ? '#3f6a3a' : '#7a9a4a', { roughness: 0.8 }), Math.cos(a) * 0.05 * scale, top, Math.sin(a) * 0.05 * scale);
+      b.rotation.y = a; b.rotation.z = (r() - 0.5) * 0.25;
+      g.add(b);
+    }
+  } else if (species === 'palm') {
+    stem(0.55, 0.02);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      flatLeaf(Math.cos(a) * 0.22 * scale, top + 0.5 * scale, Math.sin(a) * 0.22 * scale, 0.26 * scale, 0.05 * scale, greens[i % 4], 0.6, -a);
+    }
+  } else if (species === 'olive') {
+    stem(0.7, 0.018);
+    for (let i = 0; i < 26; i++) {
+      const a = r() * Math.PI * 2, rad = r() * 0.2 * scale;
+      const s2 = sphere(0.06 * scale, mat(i % 3 ? '#8a9a78' : '#6f8160', { roughness: 0.9 }), Math.cos(a) * rad, top + (0.7 + r() * 0.35) * scale, Math.sin(a) * rad);
+      s2.scale.set(1.3, 0.8, 1.3); g.add(s2);
+    }
+  } else if (species === 'fiddle') {
+    stem(0.95, 0.016);
+    for (let i = 0; i < 12; i++) {
+      const a = i * 2.4, y = top + (0.3 + (i / 12) * 0.7) * scale;
+      flatLeaf(Math.cos(a) * 0.1 * scale, y, Math.sin(a) * 0.1 * scale, 0.1 * scale, 0.13 * scale, greens[i % 4], 0.3, -a);
+    }
+  } else if (species === 'monstera') {
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2 + r(), y = top + (0.25 + r() * 0.45) * scale;
+      g.add(cyl(0.008 * scale, 0.008 * scale, y - top, mat('#4c6b3c'), Math.cos(a) * 0.1 * scale, top, Math.sin(a) * 0.1 * scale, 5));
+      flatLeaf(Math.cos(a) * 0.2 * scale, y, Math.sin(a) * 0.2 * scale, 0.2 * scale, 0.17 * scale, greens[i % 4], -0.9, -a + Math.PI / 2);
+    }
+  } else {
+    const n = 7 + Math.floor(r() * 5);
+    for (let i = 0; i < n; i++) {
+      const a = r() * Math.PI * 2;
+      const rad = (0.08 + r() * 0.14) * scale;
+      const y = top + (0.15 + r() * 0.9) * scale;
+      const s2 = sphere((0.13 + r() * 0.1) * scale, mat(greens[i % 4], { roughness: 0.9 }), Math.cos(a) * rad, y, Math.sin(a) * rad);
+      s2.scale.set(1, 0.7 + r() * 0.6, 1);
+      g.add(s2);
+    }
+    stem(0.9);
   }
-  g.add(cyl(0.012 * scale, 0.015 * scale, 0.9 * scale, mat('#5b4632'), 0, potY + potH, 0, 6));
 }
 
 function lampShade(color) {
   return new THREE.MeshStandardMaterial({ color, emissive: '#ffd27a', emissiveIntensity: 0.6, roughness: 0.9, side: THREE.DoubleSide });
 }
 
-function artTexture(color, seed, S) {
+function artTexture(color, seed, S, kind = 'abstract', aspect = 0.8) {
   const c = document.createElement('canvas');
-  c.width = 128; c.height = 160;
+  c.width = 256; c.height = Math.max(64, Math.round(256 / Math.max(0.3, aspect)));
+  paintArt(c.getContext('2d'), c.width, c.height, kind, color, S.art, seed);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+function rugTexture(it, S) {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = Math.max(64, Math.round(512 * it.d / it.w));
   const g = c.getContext('2d');
-  const r = rng(seed + 1);
-  g.fillStyle = '#f4efe6'; g.fillRect(0, 0, 128, 160);
-  const pal = S.art;
-  const kind = Math.floor(r() * 3);
-  if (kind === 0) {
-    // arches / suns
-    g.fillStyle = color; g.beginPath(); g.arc(64, 110, 46, Math.PI, 0); g.fill();
-    g.fillStyle = pal[Math.floor(r() * pal.length)]; g.beginPath(); g.arc(64, 110, 26, Math.PI, 0); g.fill();
-    g.fillStyle = pal[Math.floor(r() * pal.length)]; g.beginPath(); g.arc(30 + r() * 60, 40, 14, 0, 7); g.fill();
-  } else if (kind === 1) {
-    for (let i = 0; i < 5; i++) {
-      g.fillStyle = pal[Math.floor(r() * pal.length)];
-      g.beginPath(); g.ellipse(20 + r() * 88, 20 + r() * 120, 10 + r() * 30, 10 + r() * 30, r() * 3, 0, 7); g.fill();
-    }
-  } else {
-    g.strokeStyle = color; g.lineWidth = 5;
-    g.beginPath(); g.moveTo(10, 120);
-    for (let x = 10; x < 120; x += 10) g.lineTo(x, 60 + Math.sin(x / 14 + r() * 2) * 30);
-    g.stroke();
-    g.fillStyle = pal[Math.floor(r() * pal.length)]; g.fillRect(70, 20, 34, 34);
-  }
+  paintRug(g, c.width, c.height, it.pattern, it.rugColor || S.rug, it.rugAccent || S.rugPattern, c.width / (it.w * 100));
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -130,6 +163,7 @@ function floorTexture(S) {
 }
 
 function buildItem(it, S, lights) {
+  if (it.color) S = { ...S, fabric: it.color, fabric2: it.type === 'bed' || it.type === 'singleBed' ? S.fabric2 : it.color };
   const g = new THREE.Group();
   const { w, d, h } = it;
   const wood = mat(S.wood), woodDark = mat(S.woodDark), fabric = mat(S.fabric, { roughness: 1 }), fabric2 = mat(S.fabric2, { roughness: 1 }), metal = mat(S.metal, { metalness: 0.6, roughness: 0.4 });
@@ -245,14 +279,18 @@ function buildItem(it, S, lights) {
       break;
     }
     case 'rug': {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, d), mat(S.rug, { roughness: 1 }));
+      const tex = rugTexture(it, S);
+      const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 1 });
+      const side = mat(it.rugColor || S.rug, { roughness: 1 });
+      let m;
+      if (rugKey(it.pattern) === 'round') {
+        m = new THREE.Mesh(new THREE.CylinderGeometry(w / 2, w / 2, 0.012, 48), [side, top, side]);
+        m.scale.z = d / w;
+      } else {
+        m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, d), [side, side, top, side, side, side]);
+      }
       m.position.y = 0.006; m.receiveShadow = true;
       g.add(m);
-      const inner = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, 0.013, d - 0.3), mat(S.rugPattern, { roughness: 1 }));
-      inner.position.y = 0.007; inner.receiveShadow = true; inner.scale.set(1, 1, 1);
-      const inner2 = new THREE.Mesh(new THREE.BoxGeometry(w - 0.4, 0.014, d - 0.4), mat(S.rug, { roughness: 1 }));
-      inner2.position.y = 0.0075; inner2.receiveShadow = true;
-      g.add(inner, inner2);
       break;
     }
     case 'floorLamp': case 'arcLamp': {
@@ -266,16 +304,27 @@ function buildItem(it, S, lights) {
         g.add(shade);
         lights.push({ group: g, local: new THREE.Vector3(0, 1.5, 0.9) });
       } else {
-        g.add(cyl(0.012, 0.012, h - 0.3, metal, 0, 0.03, 0, 6));
-        const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.3, 24, 1, true), lampShade('#fff1d0'));
-        shade.position.y = h - 0.15;
+        const kind = it.shade || 'drum';
+        if (kind === 'tripod') {
+          for (let k = 0; k < 3; k++) {
+            const a = k * 2.094;
+            const leg = cyl(0.012, 0.012, h - 0.25, woodDark, 0, 0, 0, 6);
+            leg.position.set(Math.cos(a) * 0.12, (h - 0.25) / 2, Math.sin(a) * 0.12);
+            leg.rotation.set(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12);
+            g.add(leg);
+          }
+        } else g.add(cyl(0.012, 0.012, h - 0.3, metal, 0, 0.03, 0, 6));
+        let shade;
+        if (kind === 'globe') { shade = new THREE.Mesh(new THREE.SphereGeometry(0.17, 24, 16), lampShade('#fff6e2')); shade.position.y = h - 0.12; }
+        else if (kind === 'cone') { shade = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.2, 0.26, 24, 1, true), lampShade(S.metal)); shade.position.y = h - 0.13; }
+        else { shade = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.3, 24, 1, true), lampShade('#fff1d0')); shade.position.y = h - 0.15; }
         g.add(shade);
         lights.push({ group: g, local: new THREE.Vector3(0, h - 0.2, 0) });
       }
       break;
     }
-    case 'plantLarge': plant(g, 1.0, S, it.id); break;
-    case 'plantMedium': plant(g, 0.6, S, it.id); break;
+    case 'plantLarge': plant(g, 1.0, S, it.id, 0, it.species); break;
+    case 'plantMedium': plant(g, 0.6, S, it.id, 0, it.species); break;
     case 'custom': g.add(box(w, h, d, mat(S.fabric2, { roughness: 0.8 }))); break;
     default: g.add(box(w, h, d, mat('#cccccc')));
   }
@@ -354,6 +403,46 @@ function buildTop(it, S, lights) {
   return g;
 }
 
+/** Mirror of a given shape: frame + glass, standing on z = base, centred on x = 0. */
+function addMirror(g, shape, w, h, frameMat, glass, base) {
+  const cy = h / 2;
+  const flat = (geo, material, z) => { const m = new THREE.Mesh(geo, material); m.position.set(0, 0, z); return m; };
+  if (shape === 'round' || shape === 'oval' || shape === 'sunburst') {
+    const r = shape === 'round' || shape === 'sunburst' ? Math.min(w, h) / 2 : w / 2;
+    const sy = shape === 'oval' ? h / w : 1;
+    const inner = shape === 'sunburst' ? r * 0.55 : r - 0.03;
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(shape === 'sunburst' ? inner + 0.03 : r, shape === 'sunburst' ? inner + 0.03 : r, 0.03, 48), frameMat);
+    ring.rotation.x = Math.PI / 2; ring.position.set(0, cy, base + 0.015); ring.scale.z = sy;
+    const m = flat(new THREE.CircleGeometry(inner, 48), glass, base + 0.031); m.position.y = cy; m.scale.y = sy;
+    g.add(ring, m);
+    if (shape === 'sunburst') {
+      for (let k = 0; k < 24; k++) {
+        const a = (k / 24) * Math.PI * 2, len = (k % 2 ? 0.6 : 1) * (r - inner);
+        const ray = new THREE.Mesh(new THREE.BoxGeometry(0.012, len, 0.01), frameMat);
+        ray.position.set(Math.cos(a) * (inner + 0.03 + len / 2), cy + Math.sin(a) * (inner + 0.03 + len / 2), base + 0.02);
+        ray.rotation.z = a - Math.PI / 2;
+        g.add(ray);
+      }
+    }
+    return;
+  }
+  if (shape === 'arched') {
+    const arch = (ww, hh, inset) => {
+      const sh = new THREE.Shape();
+      const x0 = -ww / 2 + inset, x1 = ww / 2 - inset, rr = (x1 - x0) / 2, top = hh - inset - rr;
+      sh.moveTo(x0, inset); sh.lineTo(x1, inset); sh.lineTo(x1, top);
+      sh.absarc(0, top, rr, 0, Math.PI, false);
+      sh.lineTo(x0, inset);
+      return new THREE.ShapeGeometry(sh, 24);
+    };
+    g.add(flat(arch(w, h, 0), frameMat, base + 0.028), flat(arch(w, h, 0.03), glass, base + 0.031));
+    return;
+  }
+  g.add(box(w, h, 0.03, frameMat, 0, 0, base + 0.015));
+  const m = flat(new THREE.PlaneGeometry(w - 0.05, h - 0.05), glass, base + 0.031); m.position.y = cy;
+  g.add(m);
+}
+
 function buildWallItem(wi, S, lights) {
   const g = new THREE.Group();
   switch (wi.type) {
@@ -361,7 +450,7 @@ function buildWallItem(wi, S, lights) {
       const t = S.frameStyle === 'thick' || wi.width > 0.5 ? 0.035 : 0.022;
       const matW = wi.mat === false ? 0 : wi.mat ? Math.min(0.07, wi.width * 0.12) : 0.015;
       g.add(box(wi.width, wi.height, 0.03, mat(wi.finish || S.frame, { roughness: wi.finishName === 'brass' ? 0.35 : 0.7, metalness: wi.finishName === 'brass' ? 0.6 : 0 }), 0, 0, 0.015));
-      const art = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.02, wi.width - t * 2 - matW * 2), Math.max(0.02, wi.height - t * 2 - matW * 2)), new THREE.MeshStandardMaterial({ map: artTexture(wi.art, wi.artSeed || 1, S), roughness: 0.9 }));
+      const art = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.02, wi.width - t * 2 - matW * 2), Math.max(0.02, wi.height - t * 2 - matW * 2)), new THREE.MeshStandardMaterial({ map: artTexture(wi.art, wi.artSeed || 1, S, wi.artKind, (wi.width - t * 2 - matW * 2) / Math.max(0.02, wi.height - t * 2 - matW * 2)), roughness: 0.9 }));
       art.position.set(0, wi.height / 2, 0.031);
       const mount = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - t * 2, wi.height - t * 2), mat('#fbf8f2'));
       mount.position.set(0, wi.height / 2, 0.0305);
@@ -395,19 +484,8 @@ function buildWallItem(wi, S, lights) {
     }
     case 'mirror': {
       const glass = new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 });
-      if (wi.round) {
-        const r = Math.min(wi.width, wi.height) / 2;
-        const ring = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.03, 40), mat(S.metal, { metalness: 0.7, roughness: 0.3 }));
-        ring.rotation.x = Math.PI / 2; ring.position.set(0, wi.height / 2, 0.015);
-        const m = new THREE.Mesh(new THREE.CircleGeometry(r - 0.03, 40), glass);
-        m.position.set(0, wi.height / 2, 0.031);
-        g.add(ring, m);
-      } else {
-        g.add(box(wi.width, wi.height, 0.03, mat(S.metal, { metalness: 0.7, roughness: 0.3 }), 0, 0, 0.015));
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - 0.05, wi.height - 0.05), glass);
-        m.position.set(0, wi.height / 2, 0.031);
-        g.add(m);
-      }
+      const frameMat = mat(wi.finish || S.metal, { metalness: 0.6, roughness: 0.3 });
+      addMirror(g, variantValue(wi), wi.width, wi.height, frameMat, glass, 0);
       break;
     }
     case 'tv': {
@@ -447,9 +525,8 @@ function buildWallItem(wi, S, lights) {
       break;
     }
     case 'floorMirror': {
-      g.add(box(wi.width, wi.height, 0.03, mat('#f3f3f3'), 0, 0, 0.04));
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(wi.width - 0.05, wi.height - 0.05), new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 }));
-      m.position.set(0, wi.height / 2, 0.056); g.add(m);
+      const glass = new THREE.MeshStandardMaterial({ color: '#dfeef3', metalness: 0.15, roughness: 0.12, emissive: '#9fb8c2', emissiveIntensity: 0.25 });
+      addMirror(g, variantValue(wi), wi.width, wi.height, mat(wi.finish || '#f3f3f3', { roughness: 0.5 }), glass, 0.025);
       g.rotation.x = -0.08;
       break;
     }

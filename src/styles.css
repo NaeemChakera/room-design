@@ -223,3 +223,11 @@ summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 .pal-group { font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; }
 .chips.pal button { padding: 4px 10px; font-size: 12.5px; }
 @media (max-width: 860px) { .selbar { right: 12px; top: 8px; } .undoredo { right: 56px; bottom: 8px; } }
+
+.selbar .variant { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 6px; }
+.selbar .variant:empty { display: none; }
+.selbar .variant label { display: flex; gap: 5px; align-items: center; font-size: 12px; color: var(--muted); }
+.selbar .variant select { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12.5px; color: var(--ink); }
+.selbar .variant input[type="color"] { width: 30px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+.selbar .variant .opts { display: flex; flex-wrap: wrap; gap: 4px; }
+.selbar .variant .opts button.on { background: var(--accent); color: #fff; border-color: var(--accent); }

@@ -32,7 +32,7 @@ const STYLE_FINISHES = {
   throwback: ['walnut', 'brass', 'oak'],
 };
 
-const ART_KINDS = ['abstract', 'botanical', 'photo', 'line', 'textile'];
+const ART_KINDS = ['abstract', 'arches', 'botanical', 'landscape', 'line', 'geometric', 'photo'];
 
 // Element helpers (inches in, meters out). dx = centre offset, dz = bottom offset.
 const F = (w, h, dx, dz, extra = {}) => ({ type: 'frame', w: w * IN, h: h * IN, dx: dx * IN, dz: dz * IN, ...extra });

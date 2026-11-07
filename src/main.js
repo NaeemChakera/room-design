@@ -2,7 +2,7 @@ import {
   v, add, sub, mul, dot, dist, norm, walls as wallsOf, orientInward, closestPointOnSegment,
   area, selfIntersects, boxCorners, pointInPolygon, clamp, centroid, freeIntervals,
 } from './geometry.js';
-import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces, INCLUDE_OPTIONS, defaultInclude } from './catalog.js';
+import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces, INCLUDE_OPTIONS, defaultInclude, VARIANTS, FRAME_FINISHES, variantValue } from './catalog.js';
 import { generateDesigns, evaluateDesign, placementProblems } from './designer.js';
 import { drawDesign, drawWalls, drawDimensions, drawFloor, makeView } from './render2d.js';
 import { PRESETS, rectRoom, DEFAULT_PRESET } from './presets.js';
@@ -617,6 +617,7 @@ function afterEdit(markEdited = true) {
   update3D();
   renderSelBar();
   renderAddPanel();
+  updateHint();
   save();
 }
 
@@ -867,6 +868,98 @@ function renderSelBar() {
   $('#selDLabel').textContent = isItem ? 'deep' : 'tall';
   $('#selOwn').checked = !!o.fixed || !!o.owned;
   $('#selWarn').textContent = isItem && state.selProblems?.length ? `⚠ ${state.selProblems.join(', ')}` : '';
+  renderVariantRow(o);
+}
+
+/** Style choices for the selected piece: options, colours, frame finish, mat. */
+let variantFor = null;
+function renderVariantRow(o) {
+  const box = $('#selVariant');
+  const v = VARIANTS[o.type];
+  const sig = `${o.id}|${o.type}|${variantValue(o)}|${o.finish}|${o.mat}|${o.art}|${o.color}|${o.rugColor}|${o.rugAccent}`;
+  if (variantFor === sig) return;
+  variantFor = sig;
+  box.innerHTML = '';
+  if (!v) return;
+  const S = STYLES[state.style] || STYLES.scandinavian;
+  let undoPushed = false;
+  const change = (fn, final = true) => {
+    if (!undoPushed) { pushUndo(); undoPushed = true; }
+    fn(o);
+    if (final) { undoPushed = false; afterEdit(); } else render();
+  };
+  if (v.key) {
+    const cur = variantValue(o);
+    const wrap = document.createElement('div');
+    wrap.className = 'opts';
+    const lab = document.createElement('label'); lab.textContent = v.label; box.appendChild(lab);
+    for (const [val, label] of v.options) {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.classList.toggle('on', val === cur);
+      b.addEventListener('click', () => change((x) => {
+        x[v.key] = val;
+        if (v.key === 'mirrorShape') x.round = val === 'round';
+        if (v.key === 'pattern' && val === 'round') x.d = x.w; // round rugs are round
+        if (v.key === 'species') x.name = label;
+      }));
+      wrap.appendChild(b);
+    }
+    box.appendChild(wrap);
+  }
+  const colorInput = (field, label, fallback) => {
+    const l = document.createElement('label');
+    l.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'color';
+    inp.value = toHex(o[field] || fallback);
+    inp.addEventListener('input', () => change((x) => { x[field] = inp.value; }, false));
+    inp.addEventListener('change', () => change((x) => { x[field] = inp.value; }));
+    l.appendChild(inp);
+    box.appendChild(l);
+  };
+  const fabricDefault = o.type === 'armchair' || o.type === 'bench' ? S.fabric2 : S.fabric;
+  if (v.color) colorInput(v.color, v.colorLabel, o.type === 'rug' ? S.rug : o.type === 'frame' ? S.art[0] : fabricDefault);
+  if (v.color2) colorInput(v.color2, v.color2Label, S.rugPattern);
+  if (v.finish) {
+    const l = document.createElement('label');
+    l.textContent = 'Frame';
+    const sel = document.createElement('select');
+    const curFin = (o.finish || (o.type === 'frame' ? S.frame : S.metal)).toLowerCase();
+    for (const [hex, name] of FRAME_FINISHES) sel.add(new Option(name, hex, false, hex.toLowerCase() === curFin));
+    if (![...sel.options].some((x) => x.selected)) sel.add(new Option('Style default', curFin, true, true), 0);
+    sel.addEventListener('change', () => change((x) => { x.finish = sel.value; x.finishName = FRAME_FINISHES.find((f) => f[0] === sel.value)?.[1].toLowerCase(); }));
+    l.appendChild(sel);
+    box.appendChild(l);
+  }
+  if (v.mat) {
+    const l = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = o.mat !== false;
+    cb.addEventListener('change', () => change((x) => { x.mat = cb.checked; }));
+    l.append(cb, 'White mat');
+    box.appendChild(l);
+  }
+  // apply the same look to every piece of this kind
+  const d = curDesign();
+  const same = [...d.items, ...d.wallItems].filter((x) => x.type === o.type && x !== o);
+  if (same.length) {
+    const b = document.createElement('button');
+    b.textContent = `Apply to all ${same.length + 1}`;
+    b.title = 'Give every piece of this kind the same look';
+    b.addEventListener('click', () => change(() => {
+      const fields = [v.key, v.color, v.color2, v.finish ? 'finish' : null, v.finish ? 'finishName' : null, v.mat ? 'mat' : null, v.key === 'mirrorShape' ? 'round' : null, v.key === 'species' ? 'name' : null].filter(Boolean);
+      for (const x of same) for (const f of fields) if (o[f] !== undefined) x[f] = o[f];
+    }));
+    box.appendChild(b);
+  }
+}
+
+function toHex(c) {
+  if (/^#[0-9a-f]{6}$/i.test(c)) return c;
+  const m = String(c).match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (m) return '#' + [m[1], m[2], m[3]].map((n) => (+n).toString(16).padStart(2, '0')).join('');
+  return '#888888';
 }
 
 // Palette of pieces people can add.
@@ -1645,4 +1738,4 @@ requestAnimationFrame(() => {
 });
 
 // Expose for debugging / tests
-window.roomcraft = { state, goStep, runDesign, setView3D, parseLen, fmtLen };
+window.roomcraft = { state, goStep, runDesign, setView3D, parseLen, fmtLen, select: (kind, id) => { state.sel = { kind, id }; renderSelBar(); render(); } };

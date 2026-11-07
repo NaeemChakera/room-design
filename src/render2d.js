@@ -1,6 +1,7 @@
 // Top-down rendering of the room and a design onto a 2D canvas.
 import { STYLES, surfaces } from './catalog.js';
 import { walls as wallsOf, add, mul, rng } from './geometry.js';
+import { paintRug, rugKey } from './patterns.js';
 
 const WALL_T = 0.12;
 
@@ -36,20 +37,51 @@ function fillStroke(ctx, fill, stroke = 'rgba(0,0,0,0.35)', lw = 0.012) {
   ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.stroke();
 }
 
-function drawPlant(ctx, r, S, seed = 1, potColor) {
+function drawPlant(ctx, r, S, seed = 1, potColor, species = 'leafy') {
   const rand = rng(seed * 97 + 3);
   ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
   fillStroke(ctx, potColor || S.woodDark);
   const greens = ['#4f7a45', '#5f8f4e', '#3f6a3a', '#76a35d'];
-  const leaves = 9;
-  for (let i = 0; i < leaves; i++) {
-    const a = (i / leaves) * Math.PI * 2 + rand();
-    const lr = r * (0.55 + rand() * 0.45);
+  const leaf = (a, len, wid, color) => {
     ctx.save(); ctx.rotate(a);
-    ctx.beginPath();
-    ctx.ellipse(lr * 0.5, 0, lr * 0.55, r * 0.2, 0, 0, Math.PI * 2);
-    ctx.fillStyle = greens[i % greens.length]; ctx.fill();
-    ctx.restore();
+    ctx.beginPath(); ctx.ellipse(len * 0.5, 0, len * 0.55, wid, 0, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill(); ctx.restore();
+  };
+  if (species === 'snake') {
+    for (let i = 0; i < 9; i++) leaf((i / 9) * Math.PI * 2 + rand(), r * (0.35 + rand() * 0.35), r * 0.09, i % 2 ? '#3f6a3a' : '#7a9a4a');
+  } else if (species === 'palm') {
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + rand() * 0.3;
+      leaf(a, r * 1.05, r * 0.12, greens[i % 4]);
+      for (let k = 0.25; k < 1; k += 0.18) {
+        ctx.save(); ctx.rotate(a); ctx.translate(r * k, 0);
+        ctx.strokeStyle = '#3c5f33'; ctx.lineWidth = r * 0.03;
+        ctx.beginPath(); ctx.moveTo(0, -r * 0.14); ctx.lineTo(0, r * 0.14); ctx.stroke(); ctx.restore();
+      }
+    }
+  } else if (species === 'olive') {
+    for (let i = 0; i < 40; i++) {
+      const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * r * 0.95;
+      ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, r * 0.09, r * 0.04, a, 0, Math.PI * 2);
+      ctx.fillStyle = i % 3 ? '#8a9a78' : '#6f8160'; ctx.fill();
+    }
+  } else if (species === 'monstera' || species === 'fiddle') {
+    const n = species === 'monstera' ? 6 : 8;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + rand();
+      leaf(a, r * (0.75 + rand() * 0.25), r * (species === 'monstera' ? 0.34 : 0.26), greens[i % 4]);
+      if (species === 'monstera') {
+        ctx.save(); ctx.rotate(a); ctx.strokeStyle = S.floor || '#ddd'; ctx.lineWidth = r * 0.04;
+        for (const k of [0.35, 0.55, 0.75]) { ctx.beginPath(); ctx.moveTo(r * k, -r * 0.28); ctx.lineTo(r * k, -r * 0.12); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+  } else {
+    const leaves = 9;
+    for (let i = 0; i < leaves; i++) {
+      const a = (i / leaves) * Math.PI * 2 + rand();
+      leaf(a, r * (0.55 + rand() * 0.45), r * 0.2, greens[i % greens.length]);
+    }
   }
   ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2); ctx.fillStyle = '#3c5f33'; ctx.fill();
 }
@@ -64,21 +96,16 @@ function drawLampGlow(ctx, r) {
 
 /** Draw an item in local coordinates: x along width, +y = front. */
 export function drawItem(ctx, it, S) {
+  if (it.color) S = { ...S, fabric: it.color, fabric2: it.type === 'bed' || it.type === 'singleBed' ? S.fabric2 : it.color };
   const w = it.w, d = it.d, hw = w / 2, hd = d / 2;
   switch (it.type) {
     case 'rug': {
-      roundRect(ctx, -hw, -hd, w, d, 0.04);
-      ctx.fillStyle = S.rug; ctx.fill();
+      const round = rugKey(it.pattern) === 'round';
+      if (round) { ctx.beginPath(); ctx.ellipse(0, 0, hw, hd, 0, 0, Math.PI * 2); }
+      else roundRect(ctx, -hw, -hd, w, d, 0.04);
       ctx.save(); ctx.clip();
-      ctx.strokeStyle = S.rugPattern; ctx.lineWidth = 0.03;
-      if (it.pattern === 0 || S.stripes) {
-        for (let x = -hw; x < hw; x += 0.18) { ctx.beginPath(); ctx.moveTo(x, -hd); ctx.lineTo(x, hd); ctx.stroke(); }
-      } else if (it.pattern === 1) {
-        for (let k = -6; k < 12; k++) { ctx.beginPath(); ctx.moveTo(-hw + k * 0.25, -hd); ctx.lineTo(-hw + k * 0.25 + d * 0.6, hd); ctx.stroke(); }
-      } else {
-        roundRect(ctx, -hw + 0.12, -hd + 0.12, w - 0.24, d - 0.24, 0.05); ctx.stroke();
-        roundRect(ctx, -hw + 0.24, -hd + 0.24, w - 0.48, d - 0.48, 0.05); ctx.stroke();
-      }
+      ctx.translate(-hw, -hd);
+      paintRug(ctx, w, d, it.pattern, it.rugColor || S.rug, it.rugAccent || (S.stripes && it.pattern == null ? S.rugPattern : S.rugPattern), 0.01);
       ctx.restore();
       break;
     }
@@ -186,11 +213,15 @@ export function drawItem(ctx, it, S) {
     }
     case 'floorLamp': case 'arcLamp': {
       drawLampGlow(ctx, 0.9);
+      if (it.shade === 'tripod') {
+        ctx.strokeStyle = S.woodDark; ctx.lineWidth = 0.02;
+        for (let k = 0; k < 3; k++) { const a = k * 2.094 + 0.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a) * hw, Math.sin(a) * hw); ctx.stroke(); }
+      }
       ctx.beginPath(); ctx.arc(0, 0, hw * 0.75, 0, Math.PI * 2); fillStroke(ctx, '#fff3d6', S.metal, 0.02);
       ctx.beginPath(); ctx.arc(0, 0, 0.05, 0, Math.PI * 2); ctx.fillStyle = S.metal; ctx.fill();
       break;
     }
-    case 'plantLarge': case 'plantMedium': drawPlant(ctx, hw, S, it.id + (it.variant || 0)); break;
+    case 'plantLarge': case 'plantMedium': drawPlant(ctx, hw, S, it.id + (it.variant || 0), undefined, it.species); break;
     case 'custom': {
       roundRect(ctx, -hw, -hd, w, d, 0.03); fillStroke(ctx, shade(S.fabric2, 0.35));
       ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(-hw, -hd, w, Math.min(0.06, d * 0.15)); // back edge
