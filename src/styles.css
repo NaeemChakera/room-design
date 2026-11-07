@@ -205,3 +205,21 @@ summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
 .chips.include button .inc-hint { opacity: 0.7; font-size: 11px; }
 
 .opening-list select { padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); font-size: 12px; }
+
+.selbar {
+  position: absolute; left: 12px; right: 60px; top: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.12); font-size: 13px; z-index: 2;
+}
+.selbar b { margin-right: 4px; }
+.selbar button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 4px 8px; cursor: pointer; font-size: 12.5px; }
+.selbar button:hover { border-color: var(--muted); }
+.selbar .sz input { width: 64px; padding: 3px 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+.selbar .sz, .selbar .own { display: flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
+.selbar .selwarn { color: var(--warn); font-weight: 600; font-size: 12px; }
+.undoredo { position: absolute; right: 56px; bottom: 12px; display: flex; gap: 4px; }
+.undoredo button { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12.5px; }
+.undoredo button:disabled { opacity: 0.45; cursor: default; }
+.add-panel summary { margin-bottom: 4px; }
+.pal-group { font-size: 12px; font-weight: 600; color: var(--muted); margin: 10px 0 4px; }
+.chips.pal button { padding: 4px 10px; font-size: 12.5px; }
+@media (max-width: 860px) { .selbar { right: 12px; top: 8px; } .undoredo { right: 56px; bottom: 8px; } }

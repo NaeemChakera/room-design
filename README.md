@@ -29,6 +29,18 @@ The site goes live at `https://<your-username>.github.io/room-design/`.
 
 If a room includes your own furniture (like the preset of Naeem's bedroom), **Keep my furniture** leaves every piece where you planned it and only suggests things to add around it.
 
+### Arrange it yourself
+
+In the Design step, click any piece on the floor plan to select it:
+- Drag it to move it. It snaps flat against walls and into corners; hold Shift to stop the snapping.
+- Drag the round handle to rotate (15° steps; hold Shift to rotate freely), or use ⟲ / ⟳ / ↻ 90°.
+- Type a new width and depth, duplicate it, or delete it. Lamps, laptops and tucked-in chairs move with the piece they sit on.
+- A piece that overlaps something or sits outside the room turns red and says why.
+- Frames, shelves and mirrors slide along their wall, and a whole gallery moves as a group.
+- Keys: arrow keys to nudge (Shift for bigger steps), R to rotate, Del to delete, Ctrl/Cmd+D to duplicate, Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z to redo, Esc to deselect.
+
+**Add furniture & decor** drops common pieces, wall decor or a custom-size piece into the room. Pieces you add count as yours (left off the shopping list) unless you untick "I own this". After every edit the walkway, lighting and feng shui scores update, and your edits are saved in the browser.
+
 ### Feng shui, shopping and frames
 
 - **Feng shui mode** (`src/fengshui.js`) puts the bed and desk in the command position (you can see the door, but you aren't in line with it). It also avoids feet pointing at the door, keeps mirrors from facing the bed, warns about sharp corners near the bed, and adds a bench at the foot of the bed when that helps. You get a feng shui report with fixes, plus a bagua map drawn on the plan and aligned with the main door. It's a traditional practice, not science, and the app says so.

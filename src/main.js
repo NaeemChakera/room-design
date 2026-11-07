@@ -1,9 +1,9 @@
 import {
   v, add, sub, mul, dot, dist, norm, walls as wallsOf, orientInward, closestPointOnSegment,
-  area, selfIntersects, boxCorners, pointInPolygon, clamp,
+  area, selfIntersects, boxCorners, pointInPolygon, clamp, centroid, freeIntervals,
 } from './geometry.js';
 import { STYLES, ROOM_TYPES, ITEMS, INSPIRATION, FLOORS, surfaces, INCLUDE_OPTIONS, defaultInclude } from './catalog.js';
-import { generateDesigns } from './designer.js';
+import { generateDesigns, evaluateDesign, placementProblems } from './designer.js';
 import { drawDesign, drawWalls, drawDimensions, drawFloor, makeView } from './render2d.js';
 import { PRESETS, rectRoom, DEFAULT_PRESET } from './presets.js';
 import { shoppingList, totals, STORES, LOCAL_LINKS, FLEA_TIPS } from './shopping.js';
@@ -72,8 +72,8 @@ const state = {
 
 function save() {
   try {
-    const { room, closed, roomType, style, units, keep, step, fengShui, rethink, showBagua, have, include, presetKey } = state;
-    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, fengShui, rethink, showBagua, have, include, presetKey, step: Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
+    const { room, closed, roomType, style, units, keep, step, fengShui, rethink, showBagua, have, include, presetKey, designs, designIdx, seed } = state;
+    localStorage.setItem(STORE_KEY, JSON.stringify({ room, closed, roomType, style, units, keep, fengShui, rethink, showBagua, have, include, presetKey, designs, designIdx, seed, step: designs.length ? step : Math.min(step, 2), photo: state.photo && state.photo.src.length < 3e6 ? state.photo : null }));
   } catch { /* storage unavailable */ }
 }
 
@@ -205,6 +205,7 @@ function render() {
   if (design) {
     drawDesign(ctx, room, design, { hoverId: hover?.id });
     if (state.fengShui && state.showBagua) drawBagua(room);
+    drawSelection();
   } else {
     drawFloor(ctx, room.points, neutral);
     if (room.fixed && state.step >= 1) {
@@ -408,6 +409,7 @@ canvas.addEventListener('pointerdown', (e) => {
       if (nw) { addOpening(state.tool, nw.wall, nw.t); return; }
     }
   }
+  if (state.step === 3 && !state.view3d && curDesign() && editPointerDown(p, sp)) return;
   drag = { type: 'pan', start: sp, view0: { ...state.view } };
 });
 
@@ -439,9 +441,13 @@ canvas.addEventListener('pointermove', (e) => {
       canvas.style.cursor = hitVertex(p) >= 0 || hitWallHandle(p) >= 0 ? 'move' : 'default';
     } else if (state.step === 3) {
       updateHover(p, sp);
+      const sel = selectedItem();
+      const onKnob = sel?.kind === 'item' && dist(toScreen(rotateHandle(sel.obj).knob), sp) < 14;
+      canvas.style.cursor = onKnob ? 'crosshair' : hitDesign(p) ? 'move' : 'grab';
     }
     return;
   }
+  if (drag.type === 'move' || drag.type === 'rotate' || drag.type === 'wallmove') { editPointerMove(p, sp, e); return; }
   if (drag.type === 'pan') { panTo(sp); return; }
   if (drag.type === 'vertex') {
     const g = snapUnit();
@@ -481,6 +487,7 @@ canvas.addEventListener('pointermove', (e) => {
 
 function endPointer(e) {
   pointers.delete(e.pointerId);
+  if (drag && (drag.type === 'move' || drag.type === 'rotate' || drag.type === 'wallmove')) { editPointerUp(); return; }
   if (drag?.type === 'maybeDraw') {
     const sp = eventPos(e);
     const p = toWorld(sp.x, sp.y);
@@ -525,6 +532,19 @@ window.addEventListener('keydown', (e) => {
   }
   if (state.step === 2 && (e.key === 'Delete' || e.key === 'Backspace') && state.selOpening) removeOpening(state.selOpening);
   if (state.step === 2 && e.key === 'Escape') setTool(null);
+  if (state.step === 3 && !state.view3d) {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); undoRedo(e.shiftKey ? 1 : -1); return; }
+    if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); undoRedo(1); return; }
+    if (!state.sel) return;
+    if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateSel(); return; }
+    const step = (e.shiftKey ? 10 : 1) * snapUnit();
+    const keys = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+    if (keys[e.key]) { e.preventDefault(); nudgeSel(...keys[e.key]); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); }
+    else if (e.key === 'r' || e.key === 'R') rotateSel(e.shiftKey ? -Math.PI / 12 : Math.PI / 2);
+    else if (e.key === 'Escape') { state.sel = null; renderSelBar(); render(); }
+  }
 });
 
 function updateHover(p, sp) {
@@ -552,6 +572,374 @@ function updateHover(p, sp) {
     tip.style.top = `${sp.y + 14}px`;
   } else tip.hidden = true;
   if ((hover?.id) !== (found?.id)) { hover = found; render(); }
+}
+
+
+// ---------------------------------------------------------------------------
+// Hand editing in the Design step: select, drag, rotate, resize, add, delete.
+
+const curDesign = () => (state.step === 3 ? state.designs[state.designIdx] : null);
+const WALL_SNAP = new Set(['sofa', 'loveseat', 'bed', 'singleBed', 'nightstand', 'dresser', 'wardrobe', 'bookshelf', 'desk', 'mediaUnit', 'sideboard', 'pcTable', 'lampTable', 'bench', 'plantLarge', 'plantMedium', 'floorLamp', 'arcLamp']);
+const frontV = (b) => v(-Math.sin(b.theta), Math.cos(b.theta));
+
+function nextId(d) {
+  let m = 0;
+  for (const arr of [d.items, d.wallItems, d.topItems]) for (const x of arr) m = Math.max(m, x.id || 0);
+  return m + 1;
+}
+
+function pushUndo() {
+  const d = curDesign();
+  if (!d) return;
+  state.undo = (state.undo || []).slice(-39);
+  state.undo.push(JSON.stringify(d));
+  state.redo = [];
+}
+function undoRedo(dir) {
+  const from = dir < 0 ? state.undo : state.redo, to = dir < 0 ? state.redo : state.undo;
+  if (!from?.length || !curDesign()) return;
+  to.push(JSON.stringify(curDesign()));
+  state.designs[state.designIdx] = JSON.parse(from.pop());
+  state.sel = null;
+  afterEdit(false);
+}
+
+function afterEdit(markEdited = true) {
+  const d = curDesign();
+  if (!d) return;
+  if (markEdited) d.edited = true;
+  evaluateDesign(state.room, d, { fengShui: state.fengShui });
+  state.selProblems = selectedItem()?.kind === 'item' ? placementProblems(state.room, d, selectedItem().obj) : [];
+  renderResults();
+  render();
+  update3D();
+  renderSelBar();
+  renderAddPanel();
+  save();
+}
+
+function selectedItem() {
+  const d = curDesign();
+  if (!d || !state.sel) return null;
+  if (state.sel.kind === 'item') { const obj = d.items.find((i) => i.id === state.sel.id); return obj ? { kind: 'item', obj } : null; }
+  const obj = d.wallItems.find((i) => i.id === state.sel.id);
+  return obj ? { kind: 'wall', obj } : null;
+}
+
+function wallItemBox(wi) {
+  const w = wallsOf(state.room.points)[wi.wall];
+  if (!w) return null;
+  const c = add(add(w.a, mul(w.dir, wi.t)), mul(w.n, 0.08));
+  return { x: c.x, y: c.y, w: wi.width, d: 0.16, theta: Math.atan2(w.dir.y, w.dir.x) };
+}
+
+function hitDesign(p) {
+  const d = curDesign();
+  if (!d) return null;
+  for (const wi of d.wallItems) {
+    const b = wallItemBox(wi);
+    if (b && pointInPolygon(p, boxCorners({ ...b, d: Math.max(b.d, 0.25) }))) return { kind: 'wall', obj: wi };
+  }
+  const solid = d.items.filter((i) => !i.flat).reverse();
+  for (const it of [...solid, ...d.items.filter((i) => i.flat).reverse()]) {
+    if (pointInPolygon(p, boxCorners(it))) return { kind: 'item', obj: it };
+  }
+  return null;
+}
+
+function rotateHandle(it) {
+  const f = frontV(it);
+  const edge = add(v(it.x, it.y), mul(f, it.d / 2));
+  return { edge, knob: add(edge, mul(f, 30 / state.view.scale)) };
+}
+
+/** Children that travel with a piece: lamps/laptops on it, chairs tucked to it. */
+function captureChildren(d, it) {
+  const rel = (c) => {
+    const r = sub(v(c.x, c.y), v(it.x, it.y));
+    const cs = Math.cos(-it.theta), sn = Math.sin(-it.theta);
+    return { c, lx: r.x * cs - r.y * sn, ly: r.x * sn + r.y * cs, dt: (c.theta || 0) - it.theta };
+  };
+  return [...d.items.filter((c) => c.parent === it.id), ...d.topItems.filter((c) => c.parent === it.id)].map(rel);
+}
+function applyChildren(it, kids) {
+  const cs = Math.cos(it.theta), sn = Math.sin(it.theta);
+  for (const k of kids) {
+    k.c.x = it.x + k.lx * cs - k.ly * sn;
+    k.c.y = it.y + k.lx * sn + k.ly * cs;
+    k.c.theta = it.theta + k.dt;
+  }
+}
+
+/** Snap a moving piece flat against the nearest wall (and into corners). */
+function wallSnap(it, c) {
+  let best = null;
+  for (const w of wallsOf(state.room.points)) {
+    if (w.length < it.w) continue;
+    const r = sub(c, w.a);
+    const off = dot(r, w.n);
+    if (off < -0.05 || off > it.d / 2 + 0.35) continue;
+    const along = dot(r, w.dir);
+    if (along < -0.2 || along > w.length + 0.2) continue;
+    if (!best || off < best.off) best = { w, off, along };
+  }
+  if (!best) return null;
+  const { w } = best;
+  let t = clamp(best.along, it.w / 2, w.length - it.w / 2);
+  if (t - it.w / 2 < 0.15) t = it.w / 2;
+  if (w.length - (t + it.w / 2) < 0.15) t = w.length - it.w / 2;
+  const p = add(add(w.a, mul(w.dir, t)), mul(w.n, it.d / 2 + 0.02));
+  return { x: p.x, y: p.y, theta: Math.atan2(w.dir.y, w.dir.x) };
+}
+
+function editPointerDown(p, sp) {
+  const d = curDesign();
+  const sel = selectedItem();
+  if (sel?.kind === 'item') {
+    const { knob } = rotateHandle(sel.obj);
+    if (dist(toScreen(knob), sp) < 14) { drag = { type: 'rotate', it: sel.obj, kids: captureChildren(d, sel.obj), started: false }; return true; }
+  }
+  const hit = hitDesign(p);
+  if (!hit) {
+    if (state.sel) { state.sel = null; renderSelBar(); render(); }
+    return false;
+  }
+  state.sel = { kind: hit.kind, id: hit.obj.id };
+  if (hit.kind === 'item') {
+    drag = { type: 'move', it: hit.obj, off: sub(p, v(hit.obj.x, hit.obj.y)), kids: captureChildren(d, hit.obj), start: sp, started: false };
+  } else {
+    const grp = hit.obj.group ? d.wallItems.filter((w) => w.group === hit.obj.group && w.wall === hit.obj.wall) : [hit.obj];
+    drag = { type: 'wallmove', wi: hit.obj, grp, t0: grp.map((g) => g.t), p0: p, start: sp, started: false };
+  }
+  state.selProblems = hit.kind === 'item' ? placementProblems(state.room, d, hit.obj) : [];
+  renderSelBar();
+  render();
+  return true;
+}
+
+function editPointerMove(p, sp, e) {
+  if (!drag.started) {
+    if (drag.start && dist(sp, drag.start) < 4) return;
+    pushUndo();
+    drag.started = true;
+  }
+  const d = curDesign();
+  const g = snapUnit();
+  if (drag.type === 'move') {
+    const it = drag.it;
+    let c = sub(p, drag.off);
+    c = v(Math.round(c.x / g) * g, Math.round(c.y / g) * g);
+    const snap = !e.shiftKey && !it.flat && WALL_SNAP.has(it.type) ? wallSnap(it, c) : null;
+    if (snap) { it.x = snap.x; it.y = snap.y; it.theta = snap.theta; } else { it.x = c.x; it.y = c.y; }
+    applyChildren(it, drag.kids);
+    state.selProblems = placementProblems(state.room, d, it);
+  } else if (drag.type === 'rotate') {
+    const it = drag.it;
+    const r = sub(p, v(it.x, it.y));
+    let th = Math.atan2(-r.x, r.y);
+    if (!e.shiftKey) th = Math.round(th / (Math.PI / 12)) * (Math.PI / 12);
+    it.theta = th;
+    applyChildren(it, drag.kids);
+    state.selProblems = placementProblems(state.room, d, it);
+  } else if (drag.type === 'wallmove') {
+    const ws = wallsOf(state.room.points);
+    let w = ws[drag.wi.wall];
+    // a single piece can hop to another wall
+    if (drag.grp.length === 1) {
+      const nw = nearestWall(p, 40);
+      if (nw && nw.wall.i !== drag.wi.wall && nw.wall.length > drag.wi.width) { drag.wi.wall = nw.wall.i; w = nw.wall; drag.p0 = p; drag.t0 = [clamp(nw.t, drag.wi.width / 2, w.length - drag.wi.width / 2)]; }
+    }
+    const delta = Math.round(dot(sub(p, drag.p0), w.dir) / g) * g;
+    const lo = Math.min(...drag.grp.map((x, i) => drag.t0[i] - x.width / 2));
+    const hi = Math.max(...drag.grp.map((x, i) => drag.t0[i] + x.width / 2));
+    const dd = clamp(delta, -lo, w.length - hi);
+    drag.grp.forEach((x, i) => { x.t = drag.t0[i] + dd; });
+  }
+  render();
+}
+
+function editPointerUp() {
+  const changed = drag?.started;
+  drag = null;
+  if (changed) afterEdit();
+}
+
+function rotateSel(rad) {
+  const sel = selectedItem();
+  if (sel?.kind !== 'item') return;
+  pushUndo();
+  const kids = captureChildren(curDesign(), sel.obj);
+  sel.obj.theta += rad;
+  applyChildren(sel.obj, kids);
+  afterEdit();
+}
+
+function deleteSel() {
+  const d = curDesign(), sel = selectedItem();
+  if (!sel) return;
+  pushUndo();
+  if (sel.kind === 'item') {
+    const id = sel.obj.id;
+    d.items = d.items.filter((i) => i.id !== id && i.parent !== id);
+    d.topItems = d.topItems.filter((t) => t.parent !== id);
+  } else {
+    d.wallItems = d.wallItems.filter((w) => w !== sel.obj);
+  }
+  state.sel = null;
+  afterEdit();
+}
+
+function duplicateSel() {
+  const d = curDesign(), sel = selectedItem();
+  if (!sel) return;
+  pushUndo();
+  let id = nextId(d);
+  if (sel.kind === 'item') {
+    const src = sel.obj;
+    const copy = { ...src, id: id++, x: src.x + 0.3, y: src.y + 0.3, clearBox: null };
+    d.items.push(copy);
+    for (const c of d.items.filter((i) => i.parent === src.id)) d.items.push({ ...c, id: id++, parent: copy.id, x: c.x + 0.3, y: c.y + 0.3 });
+    for (const t of d.topItems.filter((x) => x.parent === src.id)) d.topItems.push({ ...t, id: id++, parent: copy.id, x: t.x + 0.3, y: t.y + 0.3 });
+    state.sel = { kind: 'item', id: copy.id };
+  } else {
+    const src = sel.obj;
+    const w = wallsOf(state.room.points)[src.wall];
+    const copy = { ...src, id: id++, group: undefined, t: clamp(src.t + src.width + 0.08, src.width / 2, w.length - src.width / 2) };
+    d.wallItems.push(copy);
+    state.sel = { kind: 'wall', id: copy.id };
+  }
+  afterEdit();
+}
+
+function nudgeSel(dx, dy) {
+  const sel = selectedItem();
+  if (!sel) return;
+  pushUndo();
+  if (sel.kind === 'item') {
+    const kids = captureChildren(curDesign(), sel.obj);
+    sel.obj.x += dx; sel.obj.y += dy;
+    applyChildren(sel.obj, kids);
+  } else {
+    const w = wallsOf(state.room.points)[sel.obj.wall];
+    sel.obj.t = clamp(sel.obj.t + (dx || dy) * (dx ? Math.sign(w.dir.x || 1) : Math.sign(w.dir.y || 1)), sel.obj.width / 2, w.length - sel.obj.width / 2);
+  }
+  afterEdit();
+}
+
+function drawSelection() {
+  const sel = selectedItem();
+  if (!sel || state.view3d) return;
+  const px = 1 / state.view.scale;
+  const bad = sel.kind === 'item' && state.selProblems?.length;
+  const color = bad ? '#c0392b' : '#2d6cdf';
+  const box = sel.kind === 'item' ? sel.obj : wallItemBox(sel.obj);
+  if (!box) return;
+  ctx.save();
+  const cs = boxCorners(box, 3 * px);
+  ctx.beginPath(); cs.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath();
+  ctx.fillStyle = bad ? 'rgba(192,57,43,0.12)' : 'rgba(45,108,223,0.08)'; ctx.fill();
+  ctx.lineWidth = 2 * px; ctx.setLineDash([6 * px, 4 * px]); ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]);
+  if (sel.kind === 'item') {
+    const { edge, knob } = rotateHandle(sel.obj);
+    ctx.beginPath(); ctx.moveTo(edge.x, edge.y); ctx.lineTo(knob.x, knob.y); ctx.lineWidth = 1.5 * px; ctx.strokeStyle = color; ctx.stroke();
+    ctx.beginPath(); ctx.arc(knob.x, knob.y, 8 * px, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2 * px; ctx.stroke();
+    ctx.beginPath(); ctx.arc(knob.x, knob.y, 3.5 * px, -2.2, 1.6); ctx.lineWidth = 1.5 * px; ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function renderSelBar() {
+  const bar = $('#selBar');
+  const sel = state.step === 3 && !state.view3d ? selectedItem() : null;
+  bar.hidden = !sel;
+  $('#undoRedo').hidden = !(state.step === 3 && !state.view3d && curDesign());
+  $('#undoBtn').disabled = !state.undo?.length;
+  $('#redoBtn').disabled = !state.redo?.length;
+  if (!sel) return;
+  const o = sel.obj;
+  $('#selName').textContent = o.name;
+  const isItem = sel.kind === 'item';
+  $$('#selBar .rot').forEach((b) => (b.hidden = !isItem));
+  if (document.activeElement !== $('#selW')) $('#selW').value = fmtLen(isItem ? o.w : o.width);
+  if (document.activeElement !== $('#selD')) $('#selD').value = fmtLen(isItem ? o.d : o.height);
+  $('#selDLabel').textContent = isItem ? 'deep' : 'tall';
+  $('#selOwn').checked = !!o.fixed || !!o.owned;
+  $('#selWarn').textContent = isItem && state.selProblems?.length ? `⚠ ${state.selProblems.join(', ')}` : '';
+}
+
+// Palette of pieces people can add.
+const PALETTE = [
+  ['Beds & bedroom', [['bed', 'Queen bed'], ['bed', 'Full bed', { w: 1.37, d: 1.95 }], ['singleBed', 'Single bed'], ['nightstand', 'Bedside cabinet'], ['dresser', 'Dresser'], ['wardrobe', 'Wardrobe']]],
+  ['Seating', [['sofa', 'Sofa'], ['loveseat', 'Loveseat'], ['armchair', 'Armchair'], ['bench', 'Bench'], ['chair', 'Chair'], ['deskChair', 'Desk chair']]],
+  ['Tables & desks', [['desk', 'Desk'], ['desk', 'Compact desk', { w: 1.0, d: 0.55 }], ['coffeeTable', 'Coffee table'], ['sideTable', 'Side table'], ['diningTable', 'Dining table'], ['roundTable', 'Round table']]],
+  ['Storage', [['bookshelf', 'Bookshelf'], ['mediaUnit', 'Media console'], ['sideboard', 'Sideboard']]],
+  ['Lighting, plants & rugs', [['floorLamp', 'Floor lamp'], ['arcLamp', 'Arc lamp'], ['plantLarge', 'Large plant'], ['plantMedium', 'Medium plant'], ['rug', 'Rug']]],
+  ['On the wall', [['frame', 'Frame 18×24"', { width: 0.46, height: 0.61, z: 1.2 }], ['frame', 'Frame 12×16"', { width: 0.3, height: 0.41, z: 1.3 }], ['shelf', 'Floating shelf', { width: 0.6, height: 0.04, z: 1.35, depth: 0.2 }], ['mirror', 'Mirror', { width: 0.6, height: 0.9, z: 1.1 }]]],
+];
+
+function emptyDesign() {
+  return { items: [], wallItems: [], topItems: [], notes: ['Your own layout — add pieces from “Add furniture” and drag them into place.'], style: state.style, roomType: state.roomType, metrics: { openFloor: 0, flow: 0, light: 0, blocked: [], doorsOk: true }, score: 0, edited: true };
+}
+
+function ensureDesign() {
+  if (state.step !== 3) goStep(3);
+  if (!state.designs.length) { state.designs = [emptyDesign()]; state.designIdx = 0; }
+  return curDesign();
+}
+
+function addPiece(type, name, extra = {}) {
+  const d = ensureDesign();
+  pushUndo();
+  const id = nextId(d);
+  const spec = ITEMS[type] || {};
+  if (spec.wall) {
+    const ws = wallsOf(state.room.points);
+    const width = extra.width || 0.5;
+    // longest stretch of wall free at that height (rough: avoid windows/doors)
+    let best = null;
+    for (const w of ws) {
+      const blocked = state.room.openings.filter((o) => o.wall === w.i).map((o) => [o.t - o.width / 2 - 0.1, o.t + o.width / 2 + 0.1]);
+      for (const [a, b] of freeIntervals(w.length, blocked)) if (b - a >= width && (!best || b - a > best.b - best.a)) best = { w, a, b };
+    }
+    if (!best) return;
+    const wi = { id, type, name, wall: best.w.i, t: (best.a + best.b) / 2, width, height: extra.height || 0.5, z: extra.z ?? 1.2, depth: extra.depth ?? 0.03, fixed: true, custom: true };
+    if (type === 'frame') { const S = STYLES[state.style] || STYLES.scandinavian; wi.art = S.art[id % S.art.length]; wi.artSeed = id * 97; wi.mat = true; }
+    if (type === 'shelf') wi.decor = id * 31;
+    d.wallItems.push(wi);
+    state.sel = { kind: 'wall', id };
+  } else {
+    const it = { id, type, name, w: extra.w ?? spec.w ?? 0.6, d: extra.d ?? spec.d ?? 0.6, h: extra.h ?? spec.h ?? 0.75, theta: 0, flat: !!spec.flat, tall: !!spec.tall, fixed: true, custom: true, x: 0, y: 0 };
+    if (type === 'desk') it.monitor = false;
+    // drop it in the first free spot, spiralling out from the middle of the room
+    const c0 = centroid(state.room.points);
+    let placed = false;
+    for (let r = 0; r < 3 && !placed; r += 0.25) {
+      for (let a = 0; a < Math.PI * 2 && !placed; a += r ? 0.5 / r : 7) {
+        it.x = c0.x + Math.cos(a) * r; it.y = c0.y + Math.sin(a) * r;
+        if (!placementProblems(state.room, d, it).length) placed = true;
+      }
+    }
+    if (!placed) { it.x = c0.x; it.y = c0.y; }
+    d.items.push(it);
+    state.sel = { kind: 'item', id };
+  }
+  afterEdit();
+}
+
+function renderAddPanel() {
+  const box = $('#palette');
+  if (!box || box.childElementCount) return;
+  for (const [group, list] of PALETTE) {
+    const h = document.createElement('div'); h.className = 'pal-group'; h.textContent = group; box.appendChild(h);
+    const row = document.createElement('div'); row.className = 'chips pal';
+    for (const [type, name, extra] of list) {
+      const b = document.createElement('button');
+      b.textContent = `＋ ${name}`;
+      b.addEventListener('click', () => addPiece(type, name, extra));
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -885,6 +1273,9 @@ function renderIncludeChips() {
 }
 
 function runDesign(newSeed = true) {
+  if (state.designs.some((d) => d.edited) && !confirm('Replace your hand-placed layout with new designs? (You can undo this with Ctrl/Cmd+Z.)')) return;
+  if (state.designs.length && curDesign()) pushUndo();
+  state.sel = null;
   if (newSeed && state.designs.length) state.seed++;
   const keep = state.keep && !!state.room.fixed;
   const btn = $('#generate');
@@ -912,7 +1303,7 @@ function renderResults() {
     const c = document.createElement('canvas');
     b.appendChild(c);
     b.append(`${ds.rating}/100`);
-    b.addEventListener('click', () => { state.designIdx = i; renderResults(); render(); update3D(); });
+    b.addEventListener('click', () => { state.designIdx = i; state.sel = null; state.undo = []; state.redo = []; renderResults(); render(); update3D(); renderSelBar(); save(); });
     alts.appendChild(b);
     requestAnimationFrame(() => {
       const r = window.devicePixelRatio || 1;
@@ -1031,11 +1422,14 @@ function setView3D(on) {
   $('#tooltip').hidden = true;
   if (on) update3D();
   else render();
+  renderSelBar();
 }
 
 function goStep(n) {
   if (n > 1 && !state.closed) return;
   state.step = n;
+  state.sel = null;
+  setTimeout(() => { renderSelBar(); renderAddPanel(); }, 0);
   $$('.step-panel').forEach((p) => (p.hidden = +p.dataset.panel !== n));
   $$('#steps button').forEach((b) => {
     b.classList.toggle('active', +b.dataset.step === n);
@@ -1089,6 +1483,47 @@ $('#backTo1').addEventListener('click', () => goStep(1));
 $('#backTo2').addEventListener('click', () => goStep(2));
 $$('.tool').forEach((b) => b.addEventListener('click', () => setTool(state.tool === b.dataset.tool ? null : b.dataset.tool)));
 $('#generate').addEventListener('click', () => runDesign(true));
+$$('#selBar [data-act]').forEach((b) => b.addEventListener('click', () => {
+  const a = b.dataset.act;
+  if (a === 'rotL') rotateSel(-Math.PI / 12);
+  if (a === 'rotR') rotateSel(Math.PI / 12);
+  if (a === 'rot90') rotateSel(Math.PI / 2);
+  if (a === 'dup') duplicateSel();
+  if (a === 'del') deleteSel();
+  if (a === 'close') { state.sel = null; renderSelBar(); render(); }
+}));
+for (const id of ['selW', 'selD']) {
+  $('#' + id).addEventListener('change', (e) => {
+    const sel = selectedItem();
+    const val = parseLen(e.target.value);
+    if (!sel || !(val > 0.05 && val < 6)) { renderSelBar(); return; }
+    pushUndo();
+    if (sel.kind === 'item') sel.obj[id === 'selW' ? 'w' : 'd'] = val;
+    else sel.obj[id === 'selW' ? 'width' : 'height'] = val;
+    afterEdit();
+  });
+}
+$('#selOwn').addEventListener('change', (e) => {
+  const sel = selectedItem();
+  if (!sel) return;
+  pushUndo();
+  sel.obj.fixed = e.target.checked;
+  afterEdit();
+});
+$('#undoBtn').addEventListener('click', () => undoRedo(-1));
+$('#redoBtn').addEventListener('click', () => undoRedo(1));
+$('#emptyStart').addEventListener('click', () => {
+  if (state.designs.some((d) => d.edited) && !confirm('Start over with an empty room?')) return;
+  if (curDesign()) pushUndo();
+  state.designs = [emptyDesign()]; state.designIdx = 0; state.sel = null;
+  afterEdit(false);
+});
+$('#addCustom').addEventListener('click', () => {
+  const W = parseLen($('#customW').value), D = parseLen($('#customD').value);
+  if (!(W > 0.1 && D > 0.1)) return alert('Enter a width and depth, e.g. 30" x 20" or 0.8 x 0.5 m');
+  const name = $('#customName').value.trim() || 'My piece';
+  addPiece('custom', name, { w: W, d: D, h: 0.75 });
+});
 $('#floorColor').addEventListener('input', (e) => { if (state.room.floor) { state.room.floor.color = e.target.value; surfacesChanged(false); } });
 $('#wallColor').addEventListener('input', (e) => { state.room.wallColor = e.target.value; surfacesChanged(false); });
 $('#wallStyle').addEventListener('change', (e) => {

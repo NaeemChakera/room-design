@@ -276,6 +276,7 @@ function buildItem(it, S, lights) {
     }
     case 'plantLarge': plant(g, 1.0, S, it.id); break;
     case 'plantMedium': plant(g, 0.6, S, it.id); break;
+    case 'custom': g.add(box(w, h, d, mat(S.fabric2, { roughness: 0.8 }))); break;
     default: g.add(box(w, h, d, mat('#cccccc')));
   }
   return g;

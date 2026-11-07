@@ -1363,12 +1363,39 @@ export function generateDesigns(room, opts) {
     out.push(d);
     if (out.length >= 4) break;
   }
-  // Normalise a 0–100 rating for display.
-  for (const d of out) {
-    const m = d.metrics;
-    d.rating = Math.round(clamp(0.45 * m.flow + 0.25 * Math.min(100, m.openFloor * 1.6) + 0.3 * m.light - m.blocked.length * 15 - (m.doorsOk ? 0 : 30), 0, 100));
-  }
+  for (const d of out) d.rating = ratingOf(d.metrics);
   return out;
+}
+
+/** 0–100 rating for display. */
+export function ratingOf(m) {
+  return Math.round(clamp(0.45 * m.flow + 0.25 * Math.min(100, m.openFloor * 1.6) + 0.3 * m.light - m.blocked.length * 15 - (m.doorsOk ? 0 : 30), 0, 100));
+}
+
+/** Re-check a (hand-edited) design: walkways, light, feng shui and rating. Mutates and returns it. */
+export function evaluateDesign(room, design, opts = {}) {
+  const L = new Layout(room, { roomType: design.roomType, style: design.style, ...opts }, makeRng(1));
+  L.items = design.items;
+  L.wallItems = design.wallItems;
+  L.topItems = design.topItems;
+  L.evaluate();
+  design.metrics = L.metrics;
+  design.fengShui = fengShuiReport(room, design);
+  design.rating = ratingOf(design.metrics);
+  return design;
+}
+
+/** Is a floor item placeable: inside the room and not overlapping other solid items (ignoring its own children/parent)? */
+export function placementProblems(room, design, item) {
+  const problems = [];
+  if (!boxInsidePolygon(item, room.points, 0.01)) problems.push('outside the room');
+  if (!item.flat) {
+    for (const o of design.items) {
+      if (o === item || o.flat || o.parent === item.id || item.parent === o.id || (item.parent && o.parent === item.parent)) continue;
+      if (boxesOverlap(item, o, 0)) { problems.push(`overlaps the ${o.name.toLowerCase()}`); break; }
+    }
+  }
+  return problems;
 }
 
 export { accessPoints, frontOf, rightOf };

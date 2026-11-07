@@ -85,7 +85,7 @@ export const FLEA_TIPS = [
 export function shoppingList(design, { styleName, finishNames = {} } = {}) {
   const rows = new Map();
   const push = (src, type, name, size, extra = {}) => {
-    const shop = SHOP[type];
+    const shop = SHOP[type] || (src.custom ? { q: name, new: [40, 300], used: [10, 120], verdict: 'either', tip: 'Your own piece: measure it against the size shown before you buy.' } : null);
     if (!shop) return;
     const item = { type, name, ...extra };
     const q = searchQuery({ ...src, ...item, type }, styleName);

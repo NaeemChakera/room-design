@@ -43,6 +43,7 @@ export const ITEMS = {
   sign:        { name: 'Sign', wall: true },
   pcTower:     { name: 'PC tower', top: true },
   laptop:      { name: 'Laptop', top: true },
+  custom:      { name: 'Custom piece', w: 0.6, d: 0.6, h: 0.75 },
   monitor:     { name: 'Monitor', top: true },
   projector:   { name: 'Ceiling projector', ceiling: true },
   sconce:      { name: 'Wall sconce', wall: true, light: true },

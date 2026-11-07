@@ -44,6 +44,23 @@
         <div id="view3d" class="view3d" hidden></div>
         <div class="hint" id="hint"></div>
         <div class="tooltip" id="tooltip" hidden></div>
+        <div class="selbar" id="selBar" hidden>
+          <b id="selName"></b>
+          <label class="sz">W <input id="selW" type="text" /></label>
+          <label class="sz"><span id="selDLabel">deep</span> <input id="selD" type="text" /></label>
+          <button class="rot" data-act="rotL" title="Rotate left 15° (Shift+R)">⟲ 15°</button>
+          <button class="rot" data-act="rotR" title="Rotate right 15°">⟳ 15°</button>
+          <button class="rot" data-act="rot90" title="Rotate 90° (R)">↻ 90°</button>
+          <button data-act="dup" title="Duplicate (Ctrl/Cmd+D)">⧉ Copy</button>
+          <button data-act="del" title="Delete (Del)">🗑 Delete</button>
+          <label class="own"><input type="checkbox" id="selOwn" /> I own this</label>
+          <span class="selwarn" id="selWarn"></span>
+          <button data-act="close" title="Deselect (Esc)">✕</button>
+        </div>
+        <div class="undoredo" id="undoRedo" hidden>
+          <button id="undoBtn" title="Undo (Ctrl/Cmd+Z)">↶ Undo</button>
+          <button id="redoBtn" title="Redo (Ctrl/Cmd+Shift+Z)">↷ Redo</button>
+        </div>
         <div class="zoom">
           <button id="zoomIn" title="Zoom in">+</button>
           <button id="zoomOut" title="Zoom out">−</button>
@@ -149,6 +166,24 @@
           <div class="styles" id="styles"></div>
           <button class="btn primary wide" id="generate">✨ Design my room</button>
         </div>
+
+        <details class="card add-panel" id="addPanel">
+          <summary>＋ Add furniture &amp; decor</summary>
+          <p class="small muted">Tap a piece to drop it into the room, then drag it into place. Drag the round handle to rotate (it snaps to 15°; hold Shift for free rotation). Pieces snap flat against walls; hold Shift while dragging to stop that.</p>
+          <div id="palette"></div>
+          <div class="pal-group">Custom size</div>
+          <div class="row">
+            <input id="customName" type="text" placeholder="Name (e.g. Gaming chair)" style="max-width:none" />
+          </div>
+          <div class="row">
+            <input id="customW" type="text" placeholder="Width" />
+            <span>×</span>
+            <input id="customD" type="text" placeholder="Depth" />
+            <button class="btn" id="addCustom">＋ Add</button>
+          </div>
+          <div class="row"><button class="btn ghost small" id="emptyStart">Start from an empty room</button></div>
+          <p class="small muted">Pieces you add are marked "I own this", so they stay off the shopping list. Untick it in the piece's toolbar to add one to the list.</p>
+        </details>
 
         <div id="results" hidden>
           <label class="lbl">Layouts <span class="muted small">(best first)</span></label>

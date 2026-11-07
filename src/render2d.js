@@ -191,6 +191,14 @@ export function drawItem(ctx, it, S) {
       break;
     }
     case 'plantLarge': case 'plantMedium': drawPlant(ctx, hw, S, it.id + (it.variant || 0)); break;
+    case 'custom': {
+      roundRect(ctx, -hw, -hd, w, d, 0.03); fillStroke(ctx, shade(S.fabric2, 0.35));
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(-hw, -hd, w, Math.min(0.06, d * 0.15)); // back edge
+      const fs = Math.max(0.06, Math.min(0.13, w / 7, d / 3));
+      ctx.fillStyle = '#2d2a26'; ctx.font = `600 ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(it.name || 'Piece').slice(0, 24), 0, 0, w * 0.92);
+      break;
+    }
     default:
       roundRect(ctx, -hw, -hd, w, d, 0.03); fillStroke(ctx, '#ccc');
   }
